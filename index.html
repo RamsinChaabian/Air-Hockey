@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="fa">
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>بازی دو نفره ایر هاکی</title>
+  <style>
+    /* ریست و تنظیمات کلی */
+    html,body{direction: rtl;height:100%;margin:0;padding:0;background:#061428;color:#fff;font-family: Vazirmatn, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+    #root{height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    canvas{display:block}
+
+    /* پنل امتیاز و تایمر */
+    .ui {
+      position:fixed;left:50%;transform:translateX(-50%);top:18px;z-index:30;display:flex;gap:18px;align-items:center;font-weight:700
+    }
+    .scoreBox{backdrop-filter: blur(6px);background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));padding:10px 16px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6);display:flex;gap:12px;align-items:center}
+    .scoreNumber{font-size:26px;color:#ffd166}
+    .label{font-size:13px;color:#cfe8ff;opacity:0.9}
+
+    /* دستورالعمل‌ها */
+    .controls{position:fixed;right:18px;top:18px;z-index:30;text-align:left;line-height:1.4}
+    .controls .card{text-align: justify;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px}
+
+    /* مودال قبل از شروع */
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(2,6,23,0.7), rgba(2,6,23,0.85));z-index:50}
+    .modal .panel{background:linear-gradient(180deg,#08203a,#05304a);padding:22px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.6);width:min(640px,92vw)}
+    .modal h2{margin:0 0 6px 0;font-size:20px}
+    .big{font-size:38px;color:#ffd166}
+    .btn{font-family: 'Vazirmatn';display:inline-block;padding:10px 16px;border-radius:10px;margin:8px;cursor:pointer;border:0;background:#0ea5a8;color:#002; font-weight:700}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#fff}
+
+    /* اعلان ورود فول‌اسکرین */
+    .fsPrompt{position:fixed;left:50%;top:70%;transform:translate(-50%,-50%);z-index:60;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px}
+
+    /* واکنش‌گرا */
+    @media (max-width:720px){.controls{display:none}.ui{top:10px}}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="ui" aria-hidden>
+    <div class="scoreBox">
+      <div style="text-align:center">
+        <div class="label">بازیکن→</div>
+        <div class="scoreNumber" id="scoreB">0</div>
+      </div>
+      <div style="text-align:center">
+        <div class="label">زمان</div>
+        <div class="scoreNumber" id="timer">00:00</div>
+      </div>
+      <div style="text-align:center">
+        <div class="label">بازیکن←</div>
+        <div class="scoreNumber" id="scoreA">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" aria-hidden>
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:6px">دستورالعمل‌ها</div>
+      <div>بازیکن راست: کلهای جهت ←↑↓→</div>
+      <div>بازیکن چپ: کلیدهای W A S D</div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="panel">
+      <h2>بازی دو نفره ایر هاکی</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin:12px 0">
+        <div style="flex:1">
+          <label style="font-size:13px">مدت بازی (دقیقه)</label>
+          <select id="matchMinutes" style="font-family: 'Vazirmatn';width:100%;padding:8px;margin-top:6px;border-radius:8px">
+            <option value="1">1 دقیقه</option>
+            <option value="2" selected>2 دقیقه</option>
+            <option value="3">3 دقیقه</option>
+            <option value="5">5 دقیقه</option>
+            <option value="10">10 دقیقه</option>
+          </select>
+        </div>
+        <div style="width:180px;text-align:center">
+          <div style="font-size:12px;color:#cfe8ff">کی می‌خواهید شروع شود؟</div>
+          <div style="margin-top:8px">
+            <button id="startBtn" class="btn">شروع بازی</button>
+            <button id="fullscreenBtn" class="btn ghost">درخواست تمام صفحه</button>
+          </div>
+        </div>
+      </div>
+      <div style="color:#cfe8ff;opacity:0.9;font-size:13px">قبل از شروع بازی "درخواست تمام صفحه" را کلیک کنید.</div>
+    </div>
+  </div>
+
+  
+  <script>
+  // --- بازی Air Hockey: پیاده‌سازی با canvas 2D و WebAudio برای صداهای تماشاگر و ضربه ---
+  // توضیحات کوتاه: کنترل‌ها -> بازیکن چپ: کلیدهای جهت، بازیکن راست: WASD
+
+  // المان‌ها
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const modal = document.getElementById('modal');
+  const startBtn = document.getElementById('startBtn');
+  const fsBtn = document.getElementById('fullscreenBtn');
+  const fsEnter = document.getElementById('fsEnter');
+  const scoreAEl = document.getElementById('scoreA');
+  const scoreBEl = document.getElementById('scoreB');
+  const timerEl = document.getElementById('timer');
+  const matchMinutesSelect = document.getElementById('matchMinutes');
+
+  // اندازه‌گیری و فول‌اسکرین
+  function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize',resize);
+  resize();
+
+  async function tryFullscreen(){
+    try{ if(document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); }
+    catch(e){ console.warn('fullscreen blocked',e);}
+  }
+
+  // تلاش خودکار در بارگذاری
+  window.addEventListener('load',()=>{
+    // سعی می‌کنیم خودکار فول‌اسکرین شویم (ممکن است مرورگر بلاک کند)
+    tryFullscreen();
+  });
+
+  fsBtn.addEventListener('click', tryFullscreen);
+
+  // --- پارامترها و وضعیت بازی ---
+  const state = {
+    running:false,
+    scoreA:0,
+    scoreB:0,
+    matchTime: 120, // ثانیه
+    timeLeft: 0
+  };
+
+  // میز و اشیاء: ما میز را با پرسپکتیو جلو می‌کشیم (نمای روبرو با عمق)
+  function tableCoords(w,h){
+    // مساحت قابل بازی در نسبت 0.78 از عرض
+    const padding = Math.min(w*0.06,60);
+    const left = padding, right = w-padding;
+    const top = h*0.18, bottom = h - h*0.08;
+    return {left,right,top,bottom,width:right-left,height:bottom-top};
+  }
+
+  // اشیاء فیزیکی
+  let puck, paddleA, paddleB;
+  function resetObjects(){
+    const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
+    puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, maxSpeed:1400};
+    paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900};
+    paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900};
+  }
+  resetObjects();
+
+  // ورودی کلیدها
+  const keys = {};
+  window.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; });
+  window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+
+  // صداها: Web Audio API ساده برای صدای برخورد و جمعیت
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playClick(frequency=880, duration=0.06, volume=0.12){
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    g.gain.setValueAtTime(volume, audioCtx.currentTime);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + duration);
+  }
+
+  // crowd — نویز سفید + بخش‌های تشویق تصادفی
+  const crowd = {
+    gainNode: audioCtx.createGain(),
+    running:false
+  };
+  function startCrowd(){
+    // لایه نویز
+    const bufferSize = 2*audioCtx.sampleRate;
+    const noiseBuffer = audioCtx.createBuffer(1,bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) output[i] = (Math.random()*2 - 1) * 0.4;
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
+    const noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type='lowpass'; noiseFilter.frequency.setValueAtTime(1100, audioCtx.currentTime);
+    whiteNoise.connect(noiseFilter);
+    noiseFilter.connect(crowd.gainNode);
+    crowd.gainNode.connect(audioCtx.destination);
+    crowd.gainNode.gain.setValueAtTime(0.03, audioCtx.currentTime);
+    whiteNoise.start();
+    crowd.source = whiteNoise;
+    crowd.running = true;
+    // cheers: هر از گاهی صدای تشویق کوتاه
+    crowd.cheerTimer = setInterval(()=>{ playCheer(); }, 7000 + Math.random()*8000);
+  }
+  function stopCrowd(){ if(crowd.running){ crowd.source.stop(); clearInterval(crowd.cheerTimer); crowd.running=false; } }
+  function playCheer(){
+    // یک صدای کوتاه چند هارمونیک
+    const t0 = audioCtx.currentTime;
+    const g = audioCtx.createGain(); g.gain.setValueAtTime(0.001, t0);
+    g.connect(audioCtx.destination);
+    const freqs = [440,660,880].map(f=>{ const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f + (Math.random()*80-40), t0); o.connect(g); o.start(); setTimeout(()=>o.stop(), 0.25*1000); return o; });
+    g.gain.linearRampToValueAtTime(0.06,t0+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
+  }
+
+  // فیزیک ساده
+  function stepPhysics(dt){
+    const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
+    // حرکت پدل‌ها با کلیدها
+    const move = (p, upKey, downKey, leftKey, rightKey)=>{
+      let dx=0, dy=0;
+      if(keys[upKey]) dy -= 1;
+      if(keys[downKey]) dy += 1;
+      if(keys[leftKey]) dx -= 1;
+      if(keys[rightKey]) dx += 1;
+      if(dx!==0 || dy!==0){ const len = Math.hypot(dx,dy); dx/=len; dy/=len; p.x += dx * p.speed * dt; p.y += dy * p.speed * dt; }
+      // محدودیت به نیمهٔ خودش
+      const minX = p===paddleA ? left + 8 : left + width/2 + 8;
+      const maxX = p===paddleA ? left + width/2 - 8 : right - 8;
+      p.x = Math.max(minX + p.r, Math.min(maxX - p.r, p.x));
+      p.y = Math.max(top + p.r, Math.min(bottom - p.r, p.y));
+    };
+    move(paddleA,'w','s','a','d');
+    move(paddleB,'arrowup','arrowdown','arrowleft','arrowright');
+
+
+    // حرکت پَک
+    puck.x += puck.vx * dt;
+    puck.y += puck.vy * dt;
+
+    // اصطکاک
+    const friction = 0.995 ** (dt*60);
+    puck.vx *= friction; puck.vy *= friction;
+    if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; }
+
+    // برخورد با دیواره‌ها
+    if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; playClick(600); }
+    if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; playClick(600); }
+
+    // اهداف در دو طرف عمودی کوچک: اگر رد شود -> امتیاز
+    const goalHeight = Math.min(160, height*0.32);
+    const goalTop = (top + bottom)/2 - goalHeight/2;
+    const goalBottom = (top + bottom)/2 + goalHeight/2;
+    // هدف سمت چپ
+    if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ // گل برای بازیکن راست
+        scorePoint('B');
+      } else { puck.x = left + puck.r; puck.vx *= -0.9; playClick(440);} }
+    if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; playClick(440); } }
+
+    // برخورد پَک با پدل
+    function collideP(p){ const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy); const minD = puck.r + p.r; if(dist < minD){ const nx = dx/dist, ny = dy/dist; // push out
+        const overlap = minD - dist + 0.001; puck.x += nx * overlap; puck.y += ny * overlap;
+        // بازتاب: انتقال سرعت
+        const relVx = puck.vx; const relVy = puck.vy;
+        const speed = Math.hypot(relVx,relVy);
+        // محاسبه جهت جدید بر اساس برخورد
+        const impact = (dx * (p.speed>0?0.2:1));
+        // انتقال تکان
+        const pushFactor = 1.2;
+        puck.vx = (p.vx||0) + nx * (Math.hypot(p.speed, speed) * pushFactor);
+        puck.vy = (p.vy||0) + ny * (Math.hypot(p.speed, speed) * pushFactor);
+        // محدود کردن سرعت
+        const sp = Math.min(puck.maxSpeed, Math.hypot(puck.vx,puck.vy));
+        if(sp>0){ puck.vx = puck.vx / Math.hypot(puck.vx,puck.vy) * sp; puck.vy = puck.vy / Math.hypot(puck.vx,puck.vy) * sp; }
+        // صدا
+        playClick(300 + Math.random()*900, 0.04 + Math.random()*0.04, 0.06);
+      }}
+    collideP(paddleA); collideP(paddleB);
+  }
+
+  // امتیازگیری
+  function scorePoint(player){ if(player==='A') state.scoreA++; else state.scoreB++;
+    scoreAEl.textContent = state.scoreA; scoreBEl.textContent = state.scoreB;
+    // صدای خوشحالی
+    playCheer();
+    // ریست پَک
+    const {left,right,top,bottom} = tableCoords(canvas.width,canvas.height);
+    puck.x = (left+right)/2; puck.y = (top+bottom)/2; puck.vx = (player==='A'? -220:220); puck.vy = 0;
+  }
+
+  // رسم میز با پرسپکتیو جلو
+  function draw(){
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // پس‌زمینه فضاگونه
+    const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#011121'); g.addColorStop(1,'#032a3b');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+    const {left,right,top,bottom,width,height} = tableCoords(w,h);
+
+    // سایه کلی میز
+    ctx.save();
+    ctx.translate(left + width/2, (top+bottom)/2 + height*0.05);
+    const shadowW = width*1.04, shadowH = height*1.12;
+    const rad = ctx.createRadialGradient(0,0,shadowW*0.02,0,0,shadowW*0.6);
+    rad.addColorStop(0,'rgba(0,0,0,0.55)'); rad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = rad; ctx.beginPath(); ctx.ellipse(0,0,shadowW/2,shadowH/4,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // سطح میز — یک مستطیل با عمق
+    const tableGrad = ctx.createLinearGradient(0,top,0,bottom); tableGrad.addColorStop(0,'#56ccf2'); tableGrad.addColorStop(1,'#0077b6');
+    ctx.fillStyle = tableGrad; roundRect(ctx,left,top,width,height, 26); ctx.fill();
+    // لبهٔ شیشه‌ای
+    ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(255,255,255,0.08)'; roundRect(ctx,left+3,top+3,width-6,height-6,22); ctx.stroke();
+
+    // نوار میانی
+    ctx.beginPath(); ctx.moveTo(left + width/2, top+12); ctx.lineTo(left + width/2, bottom-12); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 3; ctx.stroke();
+
+    // دروازه‌ها
+    const goalHeight = Math.min(160, height*0.32);
+    const goalTop = (top + bottom)/2 - goalHeight/2;
+    const goalBottom = (top + bottom)/2 + goalHeight/2;
+    // سمت چپ
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(ctx,left-6,goalTop, 12, goalHeight,6); ctx.fill();
+    ctx.fillStyle = 'rgba(153,255,153,0.6)'; roundRect(ctx,left,goalTop,6,goalHeight,4); ctx.fill();
+    // سمت راست
+    ctx.fillStyle = 'rgba(153,255,153,0.6)'; roundRect(ctx,right-6,goalTop,6,goalHeight,6); ctx.fill();
+
+    // علامت مرکز
+    ctx.beginPath(); ctx.arc((left+right)/2, (top+bottom)/2, 8,0,Math.PI*2); ctx.fillStyle='rgba(153,255,153,0.18)'; ctx.fill();
+
+    // پدل‌ها و پَک
+    // پدل A
+    drawPaddle(paddleA,'#ff6b6b','#731010');
+    // پدل B
+    drawPaddle(paddleB,'#ffd166','#6a4f00');
+    // پَک
+    drawPuck();
+
+    // جلوهٔ نور بالا
+    const shine = ctx.createLinearGradient(0,top,0,top+height*0.4); shine.addColorStop(0,'rgba(255,255,255,0.06)'); shine.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = shine; roundRect(ctx,left+6,top+6,width-12, Math.min(72,height*0.28), 20); ctx.fill();
+
+  }
+
+  function drawPaddle(p,c,inner){
+    // سایه
+    ctx.beginPath(); ctx.ellipse(p.x+6,p.y+10,p.r*1.1,p.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
+    // بدنه
+    const g = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.1, p.x, p.y, p.r*1.4);
+    g.addColorStop(0, '#fff'); g.addColorStop(0.1, inner); g.addColorStop(1, c);
+    ctx.beginPath(); ctx.arc(p.x,p.y, p.r,0,Math.PI*2); ctx.fillStyle = g; ctx.fill();
+    // حاشیه
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.stroke();
+  }
+  function drawPuck(){
+    // سایه
+    ctx.beginPath(); ctx.ellipse(puck.x+4,puck.y+8,puck.r*1.2,puck.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.26)'; ctx.fill();
+    // بدنه
+    const g = ctx.createLinearGradient(puck.x - puck.r, puck.y - puck.r, puck.x + puck.r, puck.y + puck.r);
+    g.addColorStop(0,'#e6f7ff'); g.addColorStop(1,'#b7ecff');
+    ctx.beginPath(); ctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.stroke();
+  }
+
+  // کمکی: مستطیل با گوشه گرد
+  function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  // حلقه اصلی
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.03,(now-last)/1000); last = now;
+    if(state.running) stepPhysics(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // تایمر مسابقه
+  let matchInterval = null;
+  function startMatch(minutes){
+    // راه‌اندازی صداها (برای برخی مرورگرها نیاز به تعامل کاربر دارد)
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    startCrowd();
+    state.matchTime = Math.max(10, Math.floor(minutes*60)); state.timeLeft = state.matchTime; state.running = true; state.scoreA=0; state.scoreB=0; scoreAEl.textContent=0; scoreBEl.textContent=0;
+    timerEl.textContent = formatTime(state.timeLeft);
+    if(matchInterval) clearInterval(matchInterval);
+    matchInterval = setInterval(()=>{
+      state.timeLeft -= 1; timerEl.textContent = formatTime(state.timeLeft);
+      if(state.timeLeft <= 0){ endMatch(); }
+    },1000);
+  }
+  function endMatch(){ state.running=false; stopCrowd(); if(matchInterval) clearInterval(matchInterval);
+    modal.style.display = 'flex'; // نمایش نتیجه
+    const winner = state.scoreA > state.scoreB ? 'بازیکن سمت چپ پیروز شد!' : (state.scoreB > state.scoreA ? 'بازیکن سمت راست پیروز شد!' : 'تساوی!');
+    modal.querySelector('.panel').innerHTML = `\n      <h2>پایان مسابقه</h2>\n      <div style="font-size:32px;margin:10px 0;color:#ffd166">${winner}</div>\n      <div style="display:flex;gap:12px;margin:10px 0">\n        <div class=\"scoreBox\">\n          <div style=\"text-align:center\"><div class=\"label\">→ بازیکن</div><div class=\"scoreNumber\">${state.scoreB}</div></div>\n        </div>\n <div class=\"scoreBox\">\n          <div style=\"text-align:center\"><div class=\"label\">بازیکن ←</div><div class=\"scoreNumber\">${state.scoreA}</div></div>\n        </div>\n       </div>\n      <div style=\"margin-top:10px\">\n        <button id=\"restartBtn\" class=\"btn\">شروع مجدد</button>\n        <button id=\"goHome\" class=\"btn ghost\">بازگشت</button>\n      </div>\n    `;
+    document.getElementById('restartBtn').addEventListener('click', ()=>{ location.reload(); });
+    document.getElementById('goHome').addEventListener('click', ()=>{ location.reload(); });
+  }
+
+  function formatTime(s){ const m = Math.floor(s/60); const sec = s%60; return String(m).padStart(2,'0')+':' + String(sec).padStart(2,'0'); }
+
+  // شروع از مودال
+  startBtn.addEventListener('click', ()=>{
+    const minutes = Number(matchMinutesSelect.value || 2);
+    modal.style.display = 'none';
+    // reset objects relative to اندازهٔ تازه
+    resize(); resetObjects();
+    // تلاش برای فعال کردن WebAudio با تعامل
+    try{ if(audioCtx.state === 'suspended') audioCtx.resume(); }catch(e){}
+    startMatch(minutes);
+  });
+
+  // بازطراحی مودال برای حالت پایان بازی و شروع مجدد: درون endMatch تغییر می‌کند
+
+  // تعامل لمسی ساده: اجازه می‌دهد بازیکن‌ها با لمس پدل‌ها کنترل کنند
+  let activeTouch = {};
+  canvas.addEventListener('touchstart', e=>{
+    e.preventDefault(); for(const t of e.changedTouches){ activeTouch[t.identifier] = {id:t.identifier}; }
+  },{passive:false});
+  canvas.addEventListener('touchmove', e=>{
+    e.preventDefault(); const rect = canvas.getBoundingClientRect(); for(const t of e.changedTouches){ const pos = {x: t.clientX - rect.left, y: t.clientY - rect.top}; // تخصیص به نزدیکترین پدل
+        const dA = Math.hypot(pos.x - paddleA.x, pos.y - paddleA.y); const dB = Math.hypot(pos.x - paddleB.x, pos.y - paddleB.y);
+        if(dA < dB) { paddleA.x = pos.x; paddleA.y = pos.y; } else { paddleB.x = pos.x; paddleB.y = pos.y; }
+      }
+  },{passive:false});
+
+  // نرمالایز: محدودیت‌ها و به‌روزرسانی اندازه
+  window.addEventListener('orientationchange', ()=>{ resize(); resetObjects(); });
+
+  // جلوگیری از انتخاب متن روی موبایل
+  document.addEventListener('selectstart', e=>e.preventDefault());
+ 
+  </script>
+</body>
+</html>
