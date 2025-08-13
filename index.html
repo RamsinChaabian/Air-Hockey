@@ -105,7 +105,6 @@
   const modal = document.getElementById('modal');
   const startBtn = document.getElementById('startBtn');
   const fsBtn = document.getElementById('fullscreenBtn');
-  const fsEnter = document.getElementById('fsEnter');
   const scoreAEl = document.getElementById('scoreA');
   const scoreBEl = document.getElementById('scoreB');
   const timerEl = document.getElementById('timer');
@@ -141,7 +140,13 @@
     timeLeft: 0
   };
 
-  // میز و اشیاء: ما میز را با پرسپکتیو جلو می‌کشیم (نمای روبرو با عمق)
+  // انیمیشن‌های جدید
+  let flashTimer = 0;
+  let flashSide = null; // 'A' or 'B'
+  let shakeTimer = 0;
+  let shakeIntensity = 0;
+
+  // میز و اشیاء: ما میز را با پرسپکتیو جلو می‌کشیم ( نمای روبرو با عمق)
   function tableCoords(w,h){
     // مساحت قابل بازی در نسبت 0.78 از عرض
     const padding = Math.min(w*0.06,60);
@@ -154,9 +159,9 @@
   let puck, paddleA, paddleB;
   function resetObjects(){
     const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
-    puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, maxSpeed:1400};
-    paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900};
-    paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900};
+    puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, maxSpeed:1400, rotation:0, angularVelocity:0};
+    paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900, vx:0, vy:0}; // افزودن vx,vy برای پدل‌ها
+    paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900, vx:0, vy:0};
   }
   resetObjects();
 
@@ -174,6 +179,18 @@
     g.gain.setValueAtTime(volume, audioCtx.currentTime);
     o.connect(g); g.connect(audioCtx.destination);
     o.start(); o.stop(audioCtx.currentTime + duration);
+  }
+
+  function playWhistle(){
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(2000 + Math.random()*500, t0);
+    g.gain.setValueAtTime(0.08, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.8);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + 0.8);
   }
 
   // crowd — نویز سفید + بخش‌های تشویق تصادفی
@@ -203,16 +220,16 @@
     crowd.cheerTimer = setInterval(()=>{ playCheer(); }, 7000 + Math.random()*8000);
   }
   function stopCrowd(){ if(crowd.running){ crowd.source.stop(); clearInterval(crowd.cheerTimer); crowd.running=false; } }
-  function playCheer(){
+  function playCheer(volume=0.06){
     // یک صدای کوتاه چند هارمونیک
     const t0 = audioCtx.currentTime;
     const g = audioCtx.createGain(); g.gain.setValueAtTime(0.001, t0);
     g.connect(audioCtx.destination);
     const freqs = [440,660,880].map(f=>{ const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f + (Math.random()*80-40), t0); o.connect(g); o.start(); setTimeout(()=>o.stop(), 0.25*1000); return o; });
-    g.gain.linearRampToValueAtTime(0.06,t0+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
+    g.gain.linearRampToValueAtTime(volume,t0+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
   }
 
-  // فیزیک ساده
+  // فیزیک ساده با بهبودها
   function stepPhysics(dt){
     const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
     // حرکت پدل‌ها با کلیدها
@@ -222,7 +239,13 @@
       if(keys[downKey]) dy += 1;
       if(keys[leftKey]) dx -= 1;
       if(keys[rightKey]) dx += 1;
-      if(dx!==0 || dy!==0){ const len = Math.hypot(dx,dy); dx/=len; dy/=len; p.x += dx * p.speed * dt; p.y += dy * p.speed * dt; }
+      if(dx!==0 || dy!==0){ 
+        const len = Math.hypot(dx,dy); dx/=len; dy/=len; 
+        p.vx = dx * p.speed; p.vy = dy * p.speed;
+        p.x += p.vx * dt; p.y += p.vy * dt; 
+      } else {
+        p.vx = 0; p.vy = 0;
+      }
       // محدودیت به نیمهٔ خودش
       const minX = p===paddleA ? left + 8 : left + width/2 + 8;
       const maxX = p===paddleA ? left + width/2 - 8 : right - 8;
@@ -236,15 +259,17 @@
     // حرکت پَک
     puck.x += puck.vx * dt;
     puck.y += puck.vy * dt;
+    puck.rotation += puck.angularVelocity * dt;
 
     // اصطکاک
     const friction = 0.995 ** (dt*60);
     puck.vx *= friction; puck.vy *= friction;
-    if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; }
+    puck.angularVelocity *= friction;
+    if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; puck.angularVelocity = 0; }
 
     // برخورد با دیواره‌ها
-    if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; playClick(600); }
-    if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; playClick(600); }
+    if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; puck.angularVelocity += puck.vx / puck.r * 0.5; playClick(600); }
+    if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; puck.angularVelocity -= puck.vx / puck.r * 0.5; playClick(600); }
 
     // اهداف در دو طرف عمودی کوچک: اگر رد شود -> امتیاز
     const goalHeight = Math.min(160, height*0.32);
@@ -253,38 +278,54 @@
     // هدف سمت چپ
     if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ // گل برای بازیکن راست
         scorePoint('B');
-      } else { puck.x = left + puck.r; puck.vx *= -0.9; playClick(440);} }
-    if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; playClick(440); } }
+      } else { puck.x = left + puck.r; puck.vx *= -0.9; puck.angularVelocity += puck.vy / puck.r * 0.5; playClick(440);} }
+    if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; puck.angularVelocity -= puck.vy / puck.r * 0.5; playClick(440); } }
 
     // برخورد پَک با پدل
-    function collideP(p){ const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy); const minD = puck.r + p.r; if(dist < minD){ const nx = dx/dist, ny = dy/dist; // push out
+    function collideP(p){ 
+      const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy); 
+      const minD = puck.r + p.r; 
+      if(dist < minD){ 
+        const nx = dx/dist, ny = dy/dist; 
+        // push out
         const overlap = minD - dist + 0.001; puck.x += nx * overlap; puck.y += ny * overlap;
-        // بازتاب: انتقال سرعت
-        const relVx = puck.vx; const relVy = puck.vy;
-        const speed = Math.hypot(relVx,relVy);
-        // محاسبه جهت جدید بر اساس برخورد
-        const impact = (dx * (p.speed>0?0.2:1));
-        // انتقال تکان
-        const pushFactor = 1.2;
-        puck.vx = (p.vx||0) + nx * (Math.hypot(p.speed, speed) * pushFactor);
-        puck.vy = (p.vy||0) + ny * (Math.hypot(p.speed, speed) * pushFactor);
+        // بازتاب دقیق‌تر
+        const relVx = puck.vx - p.vx; const relVy = puck.vy - p.vy;
+        const dot = relVx * nx + relVy * ny;
+        puck.vx -= 2 * dot * nx;
+        puck.vy -= 2 * dot * ny;
+        // افزودن چرخش
+        puck.angularVelocity += (dy / dist) * Math.hypot(relVx, relVy) / puck.r * 0.8;
         // محدود کردن سرعت
         const sp = Math.min(puck.maxSpeed, Math.hypot(puck.vx,puck.vy));
-        if(sp>0){ puck.vx = puck.vx / Math.hypot(puck.vx,puck.vy) * sp; puck.vy = puck.vy / Math.hypot(puck.vx,puck.vy) * sp; }
-        // صدا
-        playClick(300 + Math.random()*900, 0.04 + Math.random()*0.04, 0.06);
-      }}
+        if(sp>0){ 
+          const norm = sp / Math.hypot(puck.vx,puck.vy);
+          puck.vx *= norm; puck.vy *= norm; 
+        }
+        // صدا بر اساس سرعت
+        const speed = Math.hypot(puck.vx, puck.vy);
+        const freq = 300 + (speed / puck.maxSpeed) * 600;
+        playClick(freq, 0.04 + (speed / puck.maxSpeed) * 0.04, 0.06);
+      }
+    }
     collideP(paddleA); collideP(paddleB);
   }
 
   // امتیازگیری
-  function scorePoint(player){ if(player==='A') state.scoreA++; else state.scoreB++;
+  function scorePoint(player){ 
+    if(player==='A') state.scoreA++; else state.scoreB++;
     scoreAEl.textContent = state.scoreA; scoreBEl.textContent = state.scoreB;
-    // صدای خوشحالی
-    playCheer();
+    // انیمیشن گل
+    flashTimer = 0.5;
+    flashSide = player;
+    shakeTimer = 0.3;
+    shakeIntensity = 5;
+    // صدای گل غنی‌تر
+    playCheer(0.1); // بلندتر
+    playWhistle();
     // ریست پَک
     const {left,right,top,bottom} = tableCoords(canvas.width,canvas.height);
-    puck.x = (left+right)/2; puck.y = (top+bottom)/2; puck.vx = (player==='A'? -220:220); puck.vy = 0;
+    puck.x = (left+right)/2; puck.y = (top+bottom)/2; puck.vx = (player==='A'? -220:220); puck.vy = 0; puck.angularVelocity = 0;
   }
 
   // رسم میز با پرسپکتیو جلو
@@ -328,13 +369,23 @@
     // علامت مرکز
     ctx.beginPath(); ctx.arc((left+right)/2, (top+bottom)/2, 8,0,Math.PI*2); ctx.fillStyle='rgba(153,255,153,0.18)'; ctx.fill();
 
-    // پدل‌ها و پَک
+    // پدل‌ها و پَک با سایه دینامیک
     // پدل A
     drawPaddle(paddleA,'#ff6b6b','#731010');
     // پدل B
     drawPaddle(paddleB,'#ffd166','#6a4f00');
     // پَک
     drawPuck();
+
+    // فلش نور روی دروازه
+    if(flashTimer > 0) {
+      const opacity = flashTimer / 0.5;
+      ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
+      const flashX = flashSide === 'A' ? right - 20 : left;
+      roundRect(ctx, flashX, goalTop, 20, goalHeight, 6);
+      ctx.fill();
+      flashTimer -= 1/60; // تقریبی برای dt~0.016
+    }
 
     // جلوهٔ نور بالا
     const shine = ctx.createLinearGradient(0,top,0,top+height*0.4); shine.addColorStop(0,'rgba(255,255,255,0.06)'); shine.addColorStop(1,'rgba(255,255,255,0)');
@@ -343,8 +394,11 @@
   }
 
   function drawPaddle(p,c,inner){
+    const speed = Math.hypot(p.vx, p.vy);
+    const shadowOffsetX = 6 + (p.vx / p.speed) * 4;
+    const shadowOffsetY = 10 + (p.vy / p.speed) * 4;
     // سایه
-    ctx.beginPath(); ctx.ellipse(p.x+6,p.y+10,p.r*1.1,p.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r*1.1, p.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
     // بدنه
     const g = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.1, p.x, p.y, p.r*1.4);
     g.addColorStop(0, '#fff'); g.addColorStop(0.1, inner); g.addColorStop(1, c);
@@ -353,13 +407,22 @@
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.stroke();
   }
   function drawPuck(){
+    const speed = Math.hypot(puck.vx, puck.vy);
+    const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
+    const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
     // سایه
-    ctx.beginPath(); ctx.ellipse(puck.x+4,puck.y+8,puck.r*1.2,puck.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.26)'; ctx.fill();
-    // بدنه
-    const g = ctx.createLinearGradient(puck.x - puck.r, puck.y - puck.r, puck.x + puck.r, puck.y + puck.r);
+    ctx.beginPath(); ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r*1.2, puck.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.26)'; ctx.fill();
+    // بدنه با چرخش
+    ctx.save();
+    ctx.translate(puck.x, puck.y);
+    ctx.rotate(puck.rotation);
+    const g = ctx.createLinearGradient(-puck.r, -puck.r, puck.r, puck.r);
     g.addColorStop(0,'#e6f7ff'); g.addColorStop(1,'#b7ecff');
-    ctx.beginPath(); ctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,puck.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
     ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.stroke();
+    // خط برای نمایش چرخش
+    ctx.beginPath(); ctx.moveTo(-puck.r * 0.8, 0); ctx.lineTo(puck.r * 0.8, 0); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
   }
 
   // کمکی: مستطیل با گوشه گرد
@@ -370,7 +433,23 @@
   function loop(now){
     const dt = Math.min(0.03,(now-last)/1000); last = now;
     if(state.running) stepPhysics(dt);
+
+    // لرزش صفحه
+    let offsetX = 0, offsetY = 0;
+    if(shakeTimer > 0){
+      offsetX = (Math.random() - 0.5) * shakeIntensity;
+      offsetY = (Math.random() - 0.5) * shakeIntensity;
+      ctx.translate(offsetX, offsetY);
+      shakeTimer -= dt;
+      shakeIntensity *= 0.95; // کاهش شدت
+    }
+
     draw();
+
+    if(shakeTimer > 0){
+      ctx.translate(-offsetX, -offsetY);
+    }
+
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
