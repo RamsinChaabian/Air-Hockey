@@ -4,31 +4,23 @@
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>بازی دو نفره ایر هاکی (نسخه پیشرفته)</title>
+		<title>بازی ایر هاکی (تک‌نفره و دونفره)</title>
 		<style>
-			/* ریست و تنظیمات کلی */
+			/* (این بخش بدون تغییر باقی می‌ماند) */
 			html,body{direction: rtl;height:100%;margin:0;padding:0;background:#061428;color:#fff; font-feature-settings: "ss01"; font-family: Vazirmatn, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
 			#root{height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
 			canvas{display:block;cursor: none;}
-
-			/* پنل امتیاز و تایمر */
 			.ui { position:fixed;left:50%;transform:translateX(-50%);top:18px;z-index:30;display:flex;gap:18px;align-items:center;font-weight:700 }
 			.scoreBox{backdrop-filter: blur(6px);background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));padding:10px 16px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6);display:flex;gap:12px;align-items:center}
 			.scoreNumber{font-size:26px;color:#ffd166}
 			.label{font-size:13px;color:#cfe8ff;opacity:0.9}
-
-			/* مودال قبل از شروع */
 			.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(2,6,23,0.7), rgba(2,6,23,0.85));z-index:50}
 			.modal .panel{background:linear-gradient(180deg,#08203a,#05304a);padding:24px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.6);width:min(640px,92vw)}
 			.modal h2{margin:0 0 6px 0;font-size:20px; text-align:center;}
 			.big{font-size:38px;color:#ffd166}
 			.btn{font-family: 'Vazirmatn';display:inline-block;padding:10px 16px;border-radius:10px;margin:8px;cursor:pointer;border:0;background:#0ea5a8;color:#002; font-weight:700}
 			.ghost{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#fff}
-
-			/* اعلان ورود فول‌اسکرین */
 			.fsPrompt{position:fixed;left:50%;top:70%;transform:translate(-50%,-50%);z-index:60;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px}
-
-			/* واکنش‌گرا */
 			@media (max-width:720px){.ui{top:10px}}
 		</style>
 	</head>
@@ -48,7 +40,7 @@
 					<div class="scoreNumber" id="timer">00:00</div>
 				</div>
 				<div style="text-align:center">
-					<div class="label">بازیکن←</div>
+					<div class="label" id="playerALabel">بازیکن←</div>
 					<div class="scoreNumber" id="scoreA">0</div>
 				</div>
 			</div>
@@ -56,7 +48,7 @@
 
 		<div id="modal" class="modal">
 			<div class="panel">
-				<h2>بازی دو نفره ایر هاکی</h2>
+				<h2>بازی ایر هاکی</h2>
 				<div style="display:flex;gap:12px;align-items:center;margin:12px 0; flex-wrap: wrap; justify-content: center;">
 					<div style="flex:1; min-width: 180px;">
 						<label style="font-size:13px">مدت بازی (دقیقه)</label>
@@ -68,15 +60,15 @@
 							<option value="10">۱۰  دقیقه</option>
 						</select>
 					</div>
-					<div style="width:180px;text-align:center">
-						<div style="font-size:12px;color:#cfe8ff">کی می‌خواهید شروع شود؟</div>
+					<div style="width:220px;text-align:center">
+						<div style="font-size:12px;color:#cfe8ff">حالت بازی را انتخاب کنید:</div>
 						<div style="margin-top:8px">
-							<button id="startBtn" class="btn">شروع بازی</button>
-							<button id="fullscreenBtn" class="btn ghost">تمام صفحه</button>
+							<button id="startSinglePlayerBtn" class="btn">تک‌نفره</button>
+							<button id="startTwoPlayerBtn" class="btn">دونفره</button>
 						</div>
 					</div>
 				</div>
-				<div style="color:#cfe8ff;opacity:0.9;font-size:13px; text-align:center; margin-bottom: 16px;">برای تجربه بهتر، بازی را تمام صفحه کنید.</div>
+				<div style="color:#cfe8ff;opacity:0.9;font-size:13px; text-align:center; margin-bottom: 16px;">برای تجربه بهتر، <button id="fullscreenBtn" class="btn ghost" style="padding: 4px 8px; margin: 0;">تمام صفحه</button> کنید.</div>
 
 				<div style="padding-top:16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 14px; line-height: 1.7;">
 					<div style="font-weight:700; margin-bottom:10px; font-size:16px; text-align:center;">دستورالعمل‌ها</div>
@@ -88,7 +80,7 @@
 						</div>
 						<div>
 							<b style="color:red;">بازیکن چپ (قرمز):</b><br />
-							حرکت: کلیدهای W A S D<br />
+							حرکت: کلیدهای W A S D (در حالت دونفره)<br />
 							ضربه: حرکت به سمت توپ یا دکمهٔ دسته
 						</div>
 					</div>
@@ -97,42 +89,38 @@
 		</div>
 
 		<script>
-			// --- بازی Air Hockey: پیاده‌سازی با canvas 2D و WebAudio برای صدا ---
+			// --- بازی Air Hockey: پیاده‌سازی با canvas 2D و WebAudio ---
 
-			// المان‌ها
 			const canvas = document.getElementById('c');
 			const ctx = canvas.getContext('2d');
 			const modal = document.getElementById('modal');
-			const startBtn = document.getElementById('startBtn');
+			const startSinglePlayerBtn = document.getElementById('startSinglePlayerBtn');
+			const startTwoPlayerBtn = document.getElementById('startTwoPlayerBtn');
 			const fsBtn = document.getElementById('fullscreenBtn');
 			const scoreAEl = document.getElementById('scoreA');
 			const scoreBEl = document.getElementById('scoreB');
 			const timerEl = document.getElementById('timer');
 			const matchMinutesSelect = document.getElementById('matchMinutes');
+			const playerALabel = document.getElementById('playerALabel');
+
+			// --- وضعیت بازی ---
+			const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer' };
 
 			// اندازه‌گیری و فول‌اسکرین
-			function resize(){
-			  canvas.width = window.innerWidth;
-			  canvas.height = window.innerHeight;
-			}
+			function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 			window.addEventListener('resize',resize);
 			resize();
 
 			async function tryFullscreen(){
 			  try{ if(document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); }
-			  catch(e){ console.warn('fullscreen blocked',e);}  }
-
-			window.addEventListener('load',()=>{ tryFullscreen(); });
+			  catch(e){ console.warn('fullscreen blocked',e);}
+			}
+			window.addEventListener('load',()=>{ /* tryFullscreen(); */ });
 			fsBtn.addEventListener('click', tryFullscreen);
 
-			// --- پارامترها و وضعیت بازی ---
-			const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0 };
-
-			// انیمیشن‌ها
-			let flashTimer = 0; let flashSide = null; // 'A' or 'B'
+			let flashTimer = 0; let flashSide = null;
 			let shakeTimer = 0; let shakeIntensity = 0;
 
-			// میز و اشیاء
 			function tableCoords(w,h){
 			  const padding = Math.min(w*0.06,60);
 			  const left = padding, right = w-padding;
@@ -140,7 +128,6 @@
 			  return {left,right,top,bottom,width:right-left,height:bottom-top};
 			}
 
-			// اشیاء فیزیکی
 			let puck, paddleA, paddleB;
 			function resetObjects(){
 			  const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
@@ -150,126 +137,134 @@
 			}
 			resetObjects();
 
-			// ورودی کلیدها
 			const keys = {};
 			window.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; });
 			window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
 
-			// --- پشتیبانی از گیم‌پد ---
 			function handleGamepadInput() {
-			  const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : []);
+			  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
 			  if (!gamepads) return;
 
-			  // دسته اول برای بازیکن A
-			  const gp1 = gamepads[0];
-			  if (gp1) {
-			    let dx = gp1.axes[0];
-			    let dy = gp1.axes[1];
-			    if (Math.abs(dx) < 0.1) dx = 0;
-			    if (Math.abs(dy) < 0.1) dy = 0;
-                // تغییر: اعمال اینرسی برای گیم‌پد
-			    paddleA.vx += dx * paddleA.acceleration * 0.016; // فرض dt=16ms
-			    paddleA.vy += dy * paddleA.acceleration * 0.016;
-			    keys['f'] = gp1.buttons[0] && gp1.buttons[0].pressed;
-			  }
-
-			  // دسته دوم برای بازیکن B
-			  const gp2 = gamepads[1];
+			  const gp2 = gamepads[1] || gamepads[0];
 			  if (gp2) {
-			    let dx = gp2.axes[0];
-			    let dy = gp2.axes[1];
-			    if (Math.abs(dx) < 0.1) dx = 0;
-			    if (Math.abs(dy) < 0.1) dy = 0;
-                // تغییر: اعمال اینرسی برای گیم‌پد
+			    let dx = gp2.axes[0]; let dy = gp2.axes[1];
+			    if (Math.abs(dx) < 0.1) dx = 0; if (Math.abs(dy) < 0.1) dy = 0;
 			    paddleB.vx += dx * paddleB.acceleration * 0.016;
 			    paddleB.vy += dy * paddleB.acceleration * 0.016;
-			    keys['j'] = gp2.buttons[0] && gp2.buttons[0].pressed;
 			  }
+
+			  if (state.gameMode === 'twoPlayer') {
+                  const gp1 = gamepads[0];
+                  if (gp1) {
+                    let dx = gp1.axes[0]; let dy = gp1.axes[1];
+                    if (Math.abs(dx) < 0.1) dx = 0; if (Math.abs(dy) < 0.1) dy = 0;
+                    paddleA.vx += dx * paddleA.acceleration * 0.016;
+                    paddleA.vy += dy * paddleA.acceleration * 0.016;
+                  }
+              }
 			}
 
-			// صداها
 			const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 			function playClick(frequency=880, duration=0.06, volume=0.12){
-			  const o = audioCtx.createOscillator();
-			  const g = audioCtx.createGain();
+			  const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
 			  o.type='sine'; o.frequency.setValueAtTime(frequency, audioCtx.currentTime);
 			  g.gain.setValueAtTime(volume, audioCtx.currentTime);
 			  o.connect(g); g.connect(audioCtx.destination);
 			  o.start(); o.stop(audioCtx.currentTime + duration);
 			}
 			function playWhistle(){
-			  const t0 = audioCtx.currentTime;
-			  const o = audioCtx.createOscillator();
-			  const g = audioCtx.createGain();
-			  o.type = 'sine';
-			  o.frequency.setValueAtTime(2000 + Math.random()*500, t0);
-			  g.gain.setValueAtTime(0.08, t0);
-			  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.8);
-			  o.connect(g); g.connect(audioCtx.destination);
-			  o.start(t0); o.stop(t0 + 0.8);
+			  const t0 = audioCtx.currentTime; const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+			  o.type = 'sine'; o.frequency.setValueAtTime(2000 + Math.random()*500, t0);
+			  g.gain.setValueAtTime(0.08, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.8);
+			  o.connect(g); g.connect(audioCtx.destination); o.start(t0); o.stop(t0 + 0.8);
 			}
-
-			// crowd
 			const crowd = { gainNode: audioCtx.createGain(), running:false };
 			function startCrowd(){
-			  const bufferSize = 2*audioCtx.sampleRate;
-			  const noiseBuffer = audioCtx.createBuffer(1,bufferSize, audioCtx.sampleRate);
-			  const output = noiseBuffer.getChannelData(0);
-			  for(let i=0;i<bufferSize;i++) output[i] = (Math.random()*2 - 1) * 0.4;
-			  const whiteNoise = audioCtx.createBufferSource();
-			  whiteNoise.buffer = noiseBuffer; whiteNoise.loop = true;
-			  const noiseFilter = audioCtx.createBiquadFilter();
-			  noiseFilter.type='lowpass'; noiseFilter.frequency.setValueAtTime(1100, audioCtx.currentTime);
-			  whiteNoise.connect(noiseFilter); noiseFilter.connect(crowd.gainNode);
-			  crowd.gainNode.connect(audioCtx.destination);
-			  crowd.gainNode.gain.setValueAtTime(0.03, audioCtx.currentTime);
-			  whiteNoise.start();
-			  crowd.source = whiteNoise; crowd.running = true;
-			  crowd.cheerTimer = setInterval(()=>{ playCheer(); }, 7000 + Math.random()*8000);
+				if (crowd.running) return;
+				const bufferSize = 2*audioCtx.sampleRate; const noiseBuffer = audioCtx.createBuffer(1,bufferSize, audioCtx.sampleRate);
+				const output = noiseBuffer.getChannelData(0); for(let i=0;i<bufferSize;i++) output[i] = (Math.random()*2 - 1) * 0.4;
+				const whiteNoise = audioCtx.createBufferSource(); whiteNoise.buffer = noiseBuffer; whiteNoise.loop = true;
+				const noiseFilter = audioCtx.createBiquadFilter(); noiseFilter.type='lowpass'; noiseFilter.frequency.setValueAtTime(1100, audioCtx.currentTime);
+				whiteNoise.connect(noiseFilter); noiseFilter.connect(crowd.gainNode); crowd.gainNode.connect(audioCtx.destination);
+				crowd.gainNode.gain.setValueAtTime(0.03, audioCtx.currentTime); whiteNoise.start();
+				crowd.source = whiteNoise; crowd.running = true; crowd.cheerTimer = setInterval(()=>{ playCheer(); }, 7000 + Math.random()*8000);
 			}
 			function stopCrowd(){ if(crowd.running){ crowd.source.stop(); clearInterval(crowd.cheerTimer); crowd.running=false; } }
 			function playCheer(volume=0.06){
-			  const t0 = audioCtx.currentTime;
-			  const g = audioCtx.createGain(); g.gain.setValueAtTime(0.001, t0);
-			  g.connect(audioCtx.destination);
-			  const freqs = [440,660,880].map(f=>{ const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f + (Math.random()*80-40), t0); o.connect(g); o.start(); setTimeout(()=>o.stop(), 0.25*1000); return o; });
+			  const t0 = audioCtx.currentTime; const g = audioCtx.createGain(); g.gain.setValueAtTime(0.001, t0); g.connect(audioCtx.destination);
+			  [440,660,880].map(f=>{ const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f + (Math.random()*80-40), t0); o.connect(g); o.start(); setTimeout(()=>o.stop(), 0.25*1000); });
 			  g.gain.linearRampToValueAtTime(volume,t0+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
 			}
 
-			// فیزیک
+			// --- هوش مصنوعی (اصلاح شده برای رفع باگ گیر کردن توپ) ---
+			function aiControl(dt) {
+				const {left, right, top, bottom, width, height} = tableCoords(canvas.width, canvas.height);
+				const p = paddleA;
+				const target = { x: p.x, y: p.y };
+
+				// --- استراتژی تعیین هدف ---
+				const isPuckInAIHalf = puck.x < left + width * 0.5;
+
+				if (isPuckInAIHalf) {
+					// **رفع باگ:** هوش مصنوعی حالا به طور فعال به سمت توپ حرکت می‌کند
+					// تا به آن ضربه بزند، نه اینکه فقط در حالت دفاعی بماند.
+					target.x = puck.x - p.r * 0.5; // هدف را کمی پشت توپ قرار می‌دهد تا برای ضربه آماده شود
+					target.y = puck.y;
+				} else {
+					// وقتی توپ در زمین حریف است، به موقعیت دفاعی خنثی برمی‌گردد
+					target.x = left + width * 0.2;
+					target.y = (top + bottom) / 2;
+				}
+
+				// محدود کردن موقعیت هدف به نیمه زمین هوش مصنوعی
+				target.x = Math.max(left + p.r, Math.min(left + width/2 - p.r, target.x));
+				target.y = Math.max(top + p.r, Math.min(bottom - p.r, target.y));
+
+				// --- محاسبه حرکت روان ---
+				const dx = target.x - p.x;
+				const dy = target.y - p.y;
+				const dist = Math.hypot(dx, dy);
+				
+				const deadZone = 5.0;
+
+				if (dist > deadZone) {
+					const maxAISpeed = p.maxSpeed * 0.85;
+					p.vx += (dx / dist) * maxAISpeed * dt * 10;
+					p.vy += (dy / dist) * maxAISpeed * dt * 10;
+				}
+
+				// اعمال اصطکاک برای توقف نرم
+				p.vx *= 0.89;
+				p.vy *= 0.89;
+
+				// محدود کردن سرعت نهایی
+				const currentSpeed = Math.hypot(p.vx, p.vy);
+				if (currentSpeed > p.maxSpeed * 0.85) {
+					const k = (p.maxSpeed * 0.85) / currentSpeed;
+					p.vx *= k; p.vy *= k;
+				}
+			}
+
+
 			function stepPhysics(dt){
 			  const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
 
-			  // پیشنهاد ۲: حرکت پدل‌ها با اینرسی
 			  const move = (p, upKey, downKey, leftKey, rightKey)=>{
-			    const damping = 0.94; // ضریب اصطکاک برای پدل
+			    const damping = 0.94;
 			    let inputX = 0, inputY = 0;
-			    if(keys[upKey]) inputY -= 1;
-			    if(keys[downKey]) inputY += 1;
-			    if(keys[leftKey]) inputX -= 1;
-			    if(keys[rightKey]) inputX += 1;
+			    if(keys[upKey]) inputY -= 1; if(keys[downKey]) inputY += 1;
+			    if(keys[leftKey]) inputX -= 1; if(keys[rightKey]) inputX += 1;
 
 			    if (inputX !== 0 || inputY !== 0) {
 			        const len = Math.hypot(inputX, inputY);
 			        p.vx += (inputX / len) * p.acceleration * dt;
 			        p.vy += (inputY / len) * p.acceleration * dt;
 			    } else {
-                    // فقط در صورتی که گیم‌پد هم فعال نباشد، اصطکاک اعمال شود
-                    if (p === paddleA && !(navigator.getGamepads && navigator.getGamepads()[0])) {
-                        p.vx *= damping; p.vy *= damping;
-                    }
-                    if (p === paddleB && !(navigator.getGamepads && navigator.getGamepads()[1])) {
-                        p.vx *= damping; p.vy *= damping;
-                    }
-                }
+			        p.vx *= damping; p.vy *= damping;
+			    }
 
-                // محدود کردن سرعت پدل
                 const currentSpeed = Math.hypot(p.vx, p.vy);
-                if (currentSpeed > p.maxSpeed) {
-                    const k = p.maxSpeed / currentSpeed;
-                    p.vx *= k;
-                    p.vy *= k;
-                }
+                if (currentSpeed > p.maxSpeed) { const k = p.maxSpeed / currentSpeed; p.vx *= k; p.vy *= k; }
 
 			    p.x += p.vx * dt; p.y += p.vy * dt;
 			    const minX = p===paddleA ? left + 8 : left + width/2 + 8;
@@ -277,136 +272,55 @@
 			    p.x = Math.max(minX + p.r, Math.min(maxX - p.r, p.x));
 			    p.y = Math.max(top + p.r, Math.min(bottom - p.r, p.y));
 			  };
-			  move(paddleA,'w','s','a','d');
+
+			  if (state.gameMode === 'twoPlayer') {
+				  move(paddleA,'w','s','a','d');
+			  } else {
+				  aiControl(dt);
+                  // حرکت فیزیکی هوش مصنوعی
+                  paddleA.x += paddleA.vx * dt;
+                  paddleA.y += paddleA.vy * dt;
+                  paddleA.x = Math.max(left + paddleA.r, Math.min(left + width / 2 - paddleA.r, paddleA.x));
+                  paddleA.y = Math.max(top + paddleA.r, Math.min(bottom - paddleA.r, paddleA.y));
+			  }
 			  move(paddleB,'arrowup','arrowdown','arrowleft','arrowright');
 
-			  // حرکت پَک
 			  puck.x += puck.vx * dt; puck.y += puck.vy * dt; puck.rotation += puck.angularVelocity * dt;
 
-			  // اصطکاک
 			  const friction = 0.995 ** (dt*60);
 			  puck.vx *= friction; puck.vy *= friction; puck.angularVelocity *= friction;
 			  if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; }
               if(Math.abs(puck.angularVelocity) < 0.1) { puck.angularVelocity = 0; }
 
-			  // پیشنهاد ۳: برخورد با دیواره‌ها با تاثیر چرخش
               const spinEffect = 0.06;
-			  if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; puck.vx += puck.angularVelocity * spinEffect; puck.angularVelocity += puck.vx / puck.r * 0.5; playClick(600); }
-			  if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; puck.vx -= puck.angularVelocity * spinEffect; puck.angularVelocity -= puck.vx / puck.r * 0.5; playClick(600); }
+			  if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; puck.vx += puck.angularVelocity * spinEffect; playClick(600); }
+			  if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; puck.vx -= puck.angularVelocity * spinEffect; playClick(600); }
 
-			  // اهداف
 			  const goalHeight = Math.min(160, height*0.32);
 			  const goalTop = (top + bottom)/2 - goalHeight/2;
 			  const goalBottom = (top + bottom)/2 + goalHeight/2;
-			  if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('B'); } else { puck.x = left + puck.r; puck.vx *= -0.9; puck.vy -= puck.angularVelocity * spinEffect; puck.angularVelocity += puck.vy / puck.r * 0.5; playClick(440);} }
-			  if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; puck.vy += puck.angularVelocity * spinEffect; puck.angularVelocity -= puck.vy / puck.r * 0.5; playClick(440); } }
+			  if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('B'); } else { puck.x = left + puck.r; puck.vx *= -0.9; playClick(440);} }
+			  if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; playClick(440); } }
 
-			  // پیشنهاد ۱: برخورد واقع‌گرایانه پک با پدل
 			  function collideP(p){
 			    const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
 			    const minD = puck.r + p.r;
 			    if(dist < minD){
 			      const nx = dx/dist, ny = dy/dist;
 			      const overlap = minD - dist + 0.001; puck.x += nx * overlap; puck.y += ny * overlap;
-
-                  // محاسبه سرعت نسبی
-                  const vdx = puck.vx - p.vx;
-                  const vdy = puck.vy - p.vy;
-                  const dot = vdx * nx + vdy * ny;
-
-                  if (dot < 0) { // فقط در صورتی که به هم نزدیک می‌شوند برخورد کنند
-                    const restitution = 1.6; // ضریب بازگشت‌پذیری (بیشتر از ۱ برای حس بهتر در بازی آرکید)
+                  const vdx = puck.vx - p.vx; const vdy = puck.vy - p.vy; const dot = vdx * nx + vdy * ny;
+                  if (dot < 0) {
+                    const restitution = 1.6;
                     const impulse = -(restitution) * dot / (1/puck.mass + 1/p.mass);
                     puck.vx += impulse * nx / puck.mass;
                     puck.vy += impulse * ny / puck.mass;
-                    // پدل‌ها هم کمی پس زده شوند (اختیاری)
-                    // p.vx -= impulse * nx / p.mass;
-                    // p.vy -= impulse * ny / p.mass;
-
-                    // انتقال مقداری از چرخش
                     puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
                   }
 			    }
 			  }
 			  collideP(paddleA); collideP(paddleB);
-
-			  // پردازش ضربه‌ها (کیبورد و گیم‌پد) - این بخش برای ضربه‌های ویژه حفظ شده
-			  processHits();
 			}
 
-			// وضعیت ضربه برای جلوگیری از اسپم‌شدن
-			const hitState = { A:false, B:false };
-
-			// تابع اجرای فیزیک ضربه ویژه
-			function performHitOnPuck(p) {
-			    const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
-			    const reach = p.r + puck.r + 26; // محدودهٔ اثر ضربه
-			    if(dist <= reach && dist > 0.0001){
-			        const nx = dx / dist, ny = dy / dist;
-			        const proximity = Math.max(0.35, Math.min(1, 1 - (dist - (p.r+puck.r)) / (reach - (p.r+puck.r))));
-			        const power = 980 * proximity;
-			        const addVX = nx * power;
-			        const addVY = ny * power;
-
-			        puck.vx += addVX; puck.vy += addVY;
-			        const sp = Math.hypot(puck.vx,puck.vy);
-			        if(sp > puck.maxSpeed){ const k = puck.maxSpeed / sp; puck.vx *= k; puck.vy *= k; }
-
-			        puck.angularVelocity += (dy / dist) * (power / Math.max(120, puck.r*8));
-			        const freq = 300 + (Math.hypot(addVX,addVY)/puck.maxSpeed)*600;
-			        playClick(freq, 0.06, 0.08);
-			        shakeTimer = 0.15; shakeIntensity = 4;
-			    }
-			}
-
-			// تابع بررسی و اعمال ضربه
-			function processHits() {
-			    // بازیکن A
-			    let keyboardHitIntentA = false;
-			    let dxA=0, dyA=0;
-			    if(keys['w']) dyA -= 1; if(keys['s']) dyA += 1;
-			    if(keys['a']) dxA -= 1; if(keys['d']) dxA += 1;
-			    if (dxA !== 0 || dyA !== 0) {
-			        const puckDx = puck.x - paddleA.x;
-			        const puckDy = puck.y - paddleA.y;
-			        if ((dxA * puckDx + dyA * puckDy) > 0) {
-			            keyboardHitIntentA = true;
-			        }
-			    }
-			    const totalHitIntentA = !!keys['f'] || keyboardHitIntentA;
-			    if (totalHitIntentA) {
-			        if (!hitState.A) {
-			             performHitOnPuck(paddleA);
-			             hitState.A = true;
-			        }
-			    } else {
-			        hitState.A = false;
-			    }
-
-			    // بازیکن B
-			    let keyboardHitIntentB = false;
-			    let dxB=0, dyB=0;
-			    if(keys['arrowup']) dyB -= 1; if(keys['arrowdown']) dyB += 1;
-			    if(keys['arrowleft']) dxB -= 1; if(keys['arrowright']) dxB += 1;
-			    if (dxB !== 0 || dyB !== 0) {
-			        const puckDx = puck.x - paddleB.x;
-			        const puckDy = puck.y - paddleB.y;
-			        if ((dxB * puckDx + dyB * puckDy) > 0) {
-			            keyboardHitIntentB = true;
-			        }
-			    }
-			    const totalHitIntentB = !!keys['j'] || keyboardHitIntentB;
-			    if (totalHitIntentB) {
-			        if (!hitState.B) {
-			            performHitOnPuck(paddleB);
-			            hitState.B = true;
-			        }
-			    } else {
-			        hitState.B = false;
-			    }
-			}
-
-			// امتیازگیری
 			function scorePoint(player){
 			  if(player==='A') state.scoreA++; else state.scoreB++;
 			  scoreAEl.textContent = state.scoreA; scoreBEl.textContent = state.scoreB;
@@ -416,16 +330,13 @@
 			  puck.x = (left+right)/2; puck.y = (top+bottom)/2; puck.vx = (player==='A'? -220:220); puck.vy = 0; puck.angularVelocity = 0;
 			}
 
-			// رسم میز
 			function draw(){
 			  const w = canvas.width, h = canvas.height;
 			  ctx.clearRect(0,0,w,h);
 			  const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#011121'); g.addColorStop(1,'#032a3b');
 			  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
-
 			  const {left,right,top,bottom,width,height} = tableCoords(w,h);
 
-			  // سایه کلی میز
 			  ctx.save();
 			  ctx.translate(left + width/2, (top+bottom)/2 + height*0.05);
 			  const shadowW = width*1.04, shadowH = height*1.12;
@@ -434,31 +345,22 @@
 			  ctx.fillStyle = rad; ctx.beginPath(); ctx.ellipse(0,0,shadowW/2,shadowH/4,0,0,Math.PI*2); ctx.fill();
 			  ctx.restore();
 
-			  // سطح میز
 			  const tableGrad = ctx.createLinearGradient(0,top,0,bottom); tableGrad.addColorStop(0,'#56ccf2'); tableGrad.addColorStop(1,'#0077b6');
 			  ctx.fillStyle = tableGrad; roundRect(ctx,left,top,width,height, 26); ctx.fill();
 			  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(255,255,255,0.08)'; roundRect(ctx,left+3,top+3,width-6,height-6,22); ctx.stroke();
 
-			  // نوار میانی
 			  ctx.beginPath(); ctx.moveTo(left + width/2, top+12); ctx.lineTo(left + width/2, bottom-12); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 3; ctx.stroke();
-
-			  // دروازه‌ها
 			  const goalHeight = Math.min(160, height*0.32);
 			  const goalTop = (top + bottom)/2 - goalHeight/2;
-			  const goalBottom = (top + bottom)/2 + goalHeight/2;
 			  ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(ctx,left-6,goalTop, 12, goalHeight,6); ctx.fill();
 			  ctx.fillStyle = 'rgba(153,255,153,0.6)'; roundRect(ctx,left,goalTop,6,goalHeight,4); ctx.fill();
 			  ctx.fillStyle = 'rgba(153,255,153,0.6)'; roundRect(ctx,right-6,goalTop,6,goalHeight,6); ctx.fill();
-
-			  // علامت مرکز
 			  ctx.beginPath(); ctx.arc((left+right)/2, (top+bottom)/2, 8,0,Math.PI*2); ctx.fillStyle='rgba(153,255,153,0.18)'; ctx.fill();
 
-			  // پدل‌ها و پَک
 			  drawPaddle(paddleA,'#ff6b6b','#731010');
 			  drawPaddle(paddleB,'#ffd166','#6a4f00');
 			  drawPuck();
 
-			  // فلش نور روی دروازه
 			  if(flashTimer > 0) {
 			    const opacity = flashTimer / 0.5;
 			    ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
@@ -478,81 +380,36 @@
             function drawPaddle(p, c, inner) {
                 const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
                 const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
-                ctx.beginPath();
-                ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r * 1.1, p.r * 0.5, 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0,0,0,0.25)';
-                ctx.fill();
-
-                // بدنه اصلی پدل
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.beginPath(); ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r * 1.1, p.r * 0.5, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
                 const g = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, p.r * 0.1, p.x, p.y, p.r);
-                g.addColorStop(0, 'rgba(255,255,255,0.8)');
-                g.addColorStop(0.3, c);
-                g.addColorStop(1, inner);
-                ctx.fillStyle = g;
-                ctx.fill();
-
-                // هایلایت داخلی
-                ctx.beginPath();
-                ctx.arc(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5, 0, Math.PI * 2);
+                g.addColorStop(0, 'rgba(255,255,255,0.8)'); g.addColorStop(0.3, c); g.addColorStop(1, inner);
+                ctx.fillStyle = g; ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5, 0, Math.PI * 2);
                 const highlight = ctx.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.3, 0, p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5);
-                highlight.addColorStop(0, 'rgba(255,255,255,0.7)');
-                highlight.addColorStop(1, 'rgba(255,255,255,0)');
-                ctx.fillStyle = highlight;
-                ctx.fill();
-
-                // حاشیه
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-                ctx.lineWidth = 3;
-                ctx.stroke();
+                highlight.addColorStop(0, 'rgba(255,255,255,0.7)'); highlight.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = highlight; ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 3; ctx.stroke();
             }
 
 			function drawPuck(){
-			  // سایه
-			  const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
-			  const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
-			  ctx.beginPath();
-			  ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r*1.2, puck.r*0.5,0,0,Math.PI*2);
-			  ctx.fillStyle='rgba(0,0,0,0.26)';
-			  ctx.fill();
-
-			  ctx.save();
-			  ctx.translate(puck.x, puck.y);
-			  ctx.rotate(puck.rotation);
-
-			  // بدنه اصلی پک
-			  ctx.beginPath();
-			  ctx.arc(0,0,puck.r,0,Math.PI*2);
+			  const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6; const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
+			  ctx.beginPath(); ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r*1.2, puck.r*0.5,0,0,Math.PI*2);
+			  ctx.fillStyle='rgba(0,0,0,0.26)'; ctx.fill();
+			  ctx.save(); ctx.translate(puck.x, puck.y); ctx.rotate(puck.rotation);
+			  ctx.beginPath(); ctx.arc(0,0,puck.r,0,Math.PI*2);
 			  const g = ctx.createRadialGradient(-puck.r*0.3, -puck.r*0.3, 0, 0, 0, puck.r);
-			  g.addColorStop(0, '#f0f0f0');
-			  g.addColorStop(0.5, '#444');
-			  g.addColorStop(1, '#111');
-			  ctx.fillStyle=g;
-			  ctx.fill();
-
-			  // حاشیه برای ایجاد عمق
-			  ctx.beginPath();
-			  ctx.arc(0,0,puck.r,0,Math.PI*2);
-			  ctx.lineWidth=2;
-			  ctx.strokeStyle='rgba(0,0,0,0.4)';
-			  ctx.stroke();
-
-			  // لوگو یا طرح روی پک
-			  ctx.beginPath();
-			  ctx.arc(0,0, puck.r*0.6,0,Math.PI*2);
-			  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-			  ctx.lineWidth = 1.5;
-			  ctx.stroke();
-
+			  g.addColorStop(0, '#f0f0f0'); g.addColorStop(0.5, '#444'); g.addColorStop(1, '#111');
+			  ctx.fillStyle=g; ctx.fill();
+			  ctx.beginPath(); ctx.arc(0,0,puck.r,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.stroke();
+			  ctx.beginPath(); ctx.arc(0,0, puck.r*0.6,0,Math.PI*2); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5; ctx.stroke();
 			  ctx.restore();
 			}
 
 			function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
-			// حلقه اصلی
 			let last = performance.now();
 			function loop(now){
 			  const dt = Math.min(0.03,(now-last)/1000); last = now;
@@ -560,26 +417,22 @@
 			    handleGamepadInput();
 			    stepPhysics(dt);
 			  }
-
-			  // لرزش صفحه
 			  let offsetX = 0, offsetY = 0;
 			  if(shakeTimer > 0){
-			    offsetX = (Math.random() - 0.5) * shakeIntensity;
-			    offsetY = (Math.random() - 0.5) * shakeIntensity;
+			    offsetX = (Math.random() - 0.5) * shakeIntensity; offsetY = (Math.random() - 0.5) * shakeIntensity;
 			    ctx.translate(offsetX, offsetY);
 			    shakeTimer -= dt; shakeIntensity *= 0.95;
 			  }
-
 			  draw();
 			  if(shakeTimer > 0){ ctx.translate(-offsetX, -offsetY); }
-
 			  requestAnimationFrame(loop);
 			}
 			requestAnimationFrame(loop);
 
-			// تایمر مسابقه
 			let matchInterval = null;
-			function startMatch(minutes){
+			function startMatch(minutes, mode){
+			  state.gameMode = mode;
+			  playerALabel.textContent = mode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن ←';
 			  if(audioCtx.state === 'suspended') audioCtx.resume();
 			  startCrowd();
 			  state.matchTime = Math.max(10, Math.floor(minutes*60)); state.timeLeft = state.matchTime; state.running = true; state.scoreA=0; state.scoreB=0; scoreAEl.textContent=0; scoreBEl.textContent=0;
@@ -590,9 +443,11 @@
 			    if(state.timeLeft <= 0){ endMatch(); }
 			  },1000);
 			}
-			function endMatch(){ state.running=false; stopCrowd(); if(matchInterval) clearInterval(matchInterval);
+			function endMatch(){
+			  state.running=false; stopCrowd(); if(matchInterval) clearInterval(matchInterval);
 			  modal.style.display = 'flex';
-			  const winner = state.scoreA > state.scoreB ? 'بازیکن سمت چپ پیروز شد!' : (state.scoreB > state.scoreA ? 'بازیکن سمت راست پیروز شد!' : 'تساوی!');
+			  const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن چپ';
+			  const winner = state.scoreA > state.scoreB ? `${winnerA} پیروز شد!` : (state.scoreB > state.scoreA ? 'بازیکن راست پیروز شد!' : 'تساوی!');
 			  modal.querySelector('.panel').innerHTML = `
 			    <h2 style="text-align:center">پایان مسابقه</h2>
 			    <div style="font-size:32px;margin:10px 0;color:#ffd166; text-align:center;">${winner}</div>
@@ -601,7 +456,7 @@
 			        <div style="text-align:center"><div class="label">→ بازیکن</div><div class="scoreNumber">${state.scoreB}</div></div>
 			      </div>
 			      <div class="scoreBox">
-			        <div style="text-align:center"><div class="label">بازیکن ←</div><div class="scoreNumber">${state.scoreA}</div></div>
+			        <div style="text-align:center"><div class="label">${winnerA}</div><div class="scoreNumber">${state.scoreA}</div></div>
 			      </div>
 			     </div>
 			    <div style="margin-top:10px; text-align:center;">
@@ -612,22 +467,27 @@
 
 			function formatTime(s){ const m = Math.floor(s/60); const sec = s%60; return String(m).padStart(2,'0')+':' + String(sec).padStart(2,'0'); }
 
-			// شروع از مودال
-			startBtn.addEventListener('click', ()=>{
-			  const minutes = Number(matchMinutesSelect.value || 2);
-			  modal.style.display = 'none';
-			  resize(); resetObjects();
-			  try{ if(audioCtx.state === 'suspended') audioCtx.resume(); }catch(e){}
-			  startMatch(minutes);
-			});
+			function startGame(mode) {
+			    const minutes = Number(matchMinutesSelect.value || 2);
+				modal.style.display = 'none';
+				resize(); resetObjects();
+				try{ if(audioCtx.state === 'suspended') audioCtx.resume(); }catch(e){}
+				startMatch(minutes, mode);
+			}
 
-			// لمس
-			let activeTouch = {};
+			startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
+			startTwoPlayerBtn.addEventListener('click', () => startGame('twoPlayer'));
+
+
 			canvas.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ activeTouch[t.identifier] = {id:t.identifier}; } },{passive:false});
 			canvas.addEventListener('touchmove', e=>{
 			  e.preventDefault(); const rect = canvas.getBoundingClientRect(); for(const t of e.changedTouches){ const pos = {x: t.clientX - rect.left, y: t.clientY - rect.top};
 			      const dA = Math.hypot(pos.x - paddleA.x, pos.y - paddleA.y); const dB = Math.hypot(pos.x - paddleB.x, pos.y - paddleB.y);
-			      if(dA < dB) { paddleA.x = pos.x; paddleA.y = pos.y; } else { paddleB.x = pos.x; paddleB.y = pos.y; }
+			      if (state.gameMode === 'twoPlayer' && dA < dB) {
+					  paddleA.x = pos.x; paddleA.y = pos.y;
+				  } else {
+					  paddleB.x = pos.x; paddleB.y = pos.y;
+				  }
 			    }
 			},{passive:false});
 
