@@ -443,26 +443,78 @@
 			  ctx.fillStyle = shine; roundRect(ctx,tableCoords(w,h).left+6,tableCoords(w,h).top+6,width-12, Math.min(72,height*0.28), 20); ctx.fill();
 			}
 
-			function drawPaddle(p,c,inner){
-			  const shadowOffsetX = 6 + (p.vx / p.speed) * 4;
-			  const shadowOffsetY = 10 + (p.vy / p.speed) * 4;
-			  ctx.beginPath(); ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r*1.1, p.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
-			  const g = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.1, p.x, p.y, p.r*1.4);
-			  g.addColorStop(0, '#fff'); g.addColorStop(0.1, inner); g.addColorStop(1, c);
-			  ctx.beginPath(); ctx.arc(p.x,p.y, p.r,0,Math.PI*2); ctx.fillStyle = g; ctx.fill();
-			  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.stroke();
-			}
+            function drawPaddle(p, c, inner) {
+                const shadowOffsetX = 6 + (p.vx / p.speed) * 4;
+                const shadowOffsetY = 10 + (p.vy / p.speed) * 4;
+                ctx.beginPath();
+                ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r * 1.1, p.r * 0.5, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                ctx.fill();
+
+                // بدنه اصلی پدل
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                const g = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, p.r * 0.1, p.x, p.y, p.r);
+                g.addColorStop(0, 'rgba(255,255,255,0.8)');
+                g.addColorStop(0.3, c);
+                g.addColorStop(1, inner);
+                ctx.fillStyle = g;
+                ctx.fill();
+
+                // هایلایت داخلی
+                ctx.beginPath();
+                ctx.arc(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5, 0, Math.PI * 2);
+                const highlight = ctx.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.3, 0, p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5);
+                highlight.addColorStop(0, 'rgba(255,255,255,0.7)');
+                highlight.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = highlight;
+                ctx.fill();
+
+                // حاشیه
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
 			function drawPuck(){
+			  // سایه
 			  const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
 			  const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
-			  ctx.beginPath(); ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r*1.2, puck.r*0.5,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.26)'; ctx.fill();
+			  ctx.beginPath();
+			  ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r*1.2, puck.r*0.5,0,0,Math.PI*2);
+			  ctx.fillStyle='rgba(0,0,0,0.26)';
+			  ctx.fill();
+
 			  ctx.save();
-			  ctx.translate(puck.x, puck.y); ctx.rotate(puck.rotation);
-			  const g = ctx.createLinearGradient(-puck.r, -puck.r, puck.r, puck.r);
-			  g.addColorStop(0,'#e6f7ff'); g.addColorStop(1,'#b7ecff');
-			  ctx.beginPath(); ctx.arc(0,0,puck.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
-			  ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.stroke();
-			  ctx.beginPath(); ctx.moveTo(-puck.r * 0.8, 0); ctx.lineTo(puck.r * 0.8, 0); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+			  ctx.translate(puck.x, puck.y);
+			  ctx.rotate(puck.rotation);
+
+			  // بدنه اصلی پک
+			  ctx.beginPath();
+			  ctx.arc(0,0,puck.r,0,Math.PI*2);
+			  const g = ctx.createRadialGradient(-puck.r*0.3, -puck.r*0.3, 0, 0, 0, puck.r);
+			  g.addColorStop(0, '#f0f0f0'); // هایلایت روشن
+			  g.addColorStop(0.5, '#444');
+			  g.addColorStop(1, '#111'); // لبه تاریک
+			  ctx.fillStyle=g;
+			  ctx.fill();
+
+			  // حاشیه برای ایجاد عمق
+			  ctx.beginPath();
+			  ctx.arc(0,0,puck.r,0,Math.PI*2);
+			  ctx.lineWidth=2;
+			  ctx.strokeStyle='rgba(0,0,0,0.4)';
+			  ctx.stroke();
+
+			  // لوگو یا طرح روی پک (اختیاری)
+			  ctx.beginPath();
+			  ctx.arc(0,0, puck.r*0.6,0,Math.PI*2);
+			  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+			  ctx.lineWidth = 1.5;
+			  ctx.stroke();
+
 			  ctx.restore();
 			}
 
