@@ -196,22 +196,31 @@
 			  g.gain.linearRampToValueAtTime(volume,t0+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
 			}
 
-			// --- هوش مصنوعی (اصلاح شده برای رفع باگ گیر کردن توپ) ---
+			// --- هوش مصنوعی (اصلاح شده برای رفع باگ و بهبود دفاع) ---
 			function aiControl(dt) {
 				const {left, right, top, bottom, width, height} = tableCoords(canvas.width, canvas.height);
 				const p = paddleA;
 				const target = { x: p.x, y: p.y };
 
-				// --- استراتژی تعیین هدف ---
+				// --- استراتژی تعیین هدف بهبود یافته ---
 				const isPuckInAIHalf = puck.x < left + width * 0.5;
+				// بررسی اینکه آیا توپ با سرعت قابل توجهی به سمت دروازه هوش مصنوعی در حرکت است یا خیر
+				const isPuckMovingToAIGoal = puck.vx < -10; 
 
-				if (isPuckInAIHalf) {
-					// **رفع باگ:** هوش مصنوعی حالا به طور فعال به سمت توپ حرکت می‌کند
-					// تا به آن ضربه بزند، نه اینکه فقط در حالت دفاعی بماند.
-					target.x = puck.x - p.r * 0.5; // هدف را کمی پشت توپ قرار می‌دهد تا برای ضربه آماده شود
+				// **منطق جدید:** اگر توپ یک تهدید مستقیم است (در نیمه زمین هوش مصنوعی و در حال حرکت به سمت دروازه)، حالت دفاعی بگیر
+				if (isPuckInAIHalf && isPuckMovingToAIGoal) {
+					// **حالت دفاعی:** به جای دنبال کردن توپ، به یک خط دفاعی عقب‌نشینی کن تا مسیر را سد کنی
+					target.x = left + width * 0.12; // یک موقعیت دفاعی ثابت نزدیک به دروازه
+					target.y = puck.y; // از نظر عمودی با توپ تراز شو
+				}
+				// اگر توپ در نیمه زمین ماست اما تهدید فوری نیست، برای حمله آماده شو
+				else if (isPuckInAIHalf) {
+					// **حالت تهاجمی:** برای ضربه زدن، پشت توپ قرار بگیر
+					target.x = puck.x - p.r * 0.5;
 					target.y = puck.y;
-				} else {
-					// وقتی توپ در زمین حریف است، به موقعیت دفاعی خنثی برمی‌گردد
+				}
+				// اگر توپ در زمین حریف است، به موقعیت آماده‌باش اولیه برگرد
+				else {
 					target.x = left + width * 0.2;
 					target.y = (top + bottom) / 2;
 				}
@@ -220,7 +229,7 @@
 				target.x = Math.max(left + p.r, Math.min(left + width/2 - p.r, target.x));
 				target.y = Math.max(top + p.r, Math.min(bottom - p.r, target.y));
 
-				// --- محاسبه حرکت روان ---
+				// --- محاسبه حرکت روان (این بخش بدون تغییر باقی می‌ماند) ---
 				const dx = target.x - p.x;
 				const dy = target.y - p.y;
 				const dist = Math.hypot(dx, dy);
