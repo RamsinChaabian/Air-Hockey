@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="fa">
 	<head>
-		<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>بازی دو نفره ایر هاکی</title>
+		<title>بازی دو نفره ایر هاکی (نسخه پیشرفته)</title>
 		<style>
 			/* ریست و تنظیمات کلی */
-			html,body{direction: rtl;height:100%;margin:0;padding:0;background:#061428;color:#fff;font-family: Vazirmatn, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+			html,body{direction: rtl;height:100%;margin:0;padding:0;background:#061428;color:#fff; font-feature-settings: "ss01"; font-family: Vazirmatn, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
 			#root{height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
 			canvas{display:block;cursor: none;}
 
@@ -60,12 +60,12 @@
 				<div style="display:flex;gap:12px;align-items:center;margin:12px 0; flex-wrap: wrap; justify-content: center;">
 					<div style="flex:1; min-width: 180px;">
 						<label style="font-size:13px">مدت بازی (دقیقه)</label>
-						<select id="matchMinutes" style="font-family: 'Vazirmatn';width:100%;padding:8px;margin-top:6px;border-radius:8px">
-							<option value="1">1 دقیقه</option>
-							<option value="2" selected>2 دقیقه</option>
-							<option value="3">3 دقیقه</option>
-							<option value="5">5 دقیقه</option>
-							<option value="10">10 دقیقه</option>
+						<select id="matchMinutes" style="font-feature-settings: 'ss01';font-family: 'Vazirmatn';width:100%;padding:8px;margin-top:6px;border-radius:8px">
+							<option value="1">۱ دقیقه</option>
+							<option value="2" selected>۲ دقیقه</option>
+							<option value="3">۳ دقیقه</option>
+							<option value="5">۵ دقیقه</option>
+							<option value="10">۱۰  دقیقه</option>
 						</select>
 					</div>
 					<div style="width:180px;text-align:center">
@@ -144,9 +144,9 @@
 			let puck, paddleA, paddleB;
 			function resetObjects(){
 			  const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
-			  puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, maxSpeed:1400, rotation:0, angularVelocity:0};
-			  paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900, vx:0, vy:0};
-			  paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), speed: 900, vx:0, vy:0};
+			  puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, mass:1, maxSpeed:1400, rotation:0, angularVelocity:0};
+			  paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
+			  paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
 			}
 			resetObjects();
 
@@ -167,9 +167,9 @@
 			    let dy = gp1.axes[1];
 			    if (Math.abs(dx) < 0.1) dx = 0;
 			    if (Math.abs(dy) < 0.1) dy = 0;
-			    paddleA.vx = dx * paddleA.speed;
-			    paddleA.vy = dy * paddleA.speed;
-			    // دکمه ضربه برای بازیکن A (دکمه اول دسته)
+                // تغییر: اعمال اینرسی برای گیم‌پد
+			    paddleA.vx += dx * paddleA.acceleration * 0.016; // فرض dt=16ms
+			    paddleA.vy += dy * paddleA.acceleration * 0.016;
 			    keys['f'] = gp1.buttons[0] && gp1.buttons[0].pressed;
 			  }
 
@@ -180,9 +180,9 @@
 			    let dy = gp2.axes[1];
 			    if (Math.abs(dx) < 0.1) dx = 0;
 			    if (Math.abs(dy) < 0.1) dy = 0;
-			    paddleB.vx = dx * paddleB.speed;
-			    paddleB.vy = dy * paddleB.speed;
-			    // دکمه ضربه برای بازیکن B
+                // تغییر: اعمال اینرسی برای گیم‌پد
+			    paddleB.vx += dx * paddleB.acceleration * 0.016;
+			    paddleB.vy += dy * paddleB.acceleration * 0.016;
 			    keys['j'] = gp2.buttons[0] && gp2.buttons[0].pressed;
 			  }
 			}
@@ -240,22 +240,37 @@
 			function stepPhysics(dt){
 			  const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
 
-			  // حرکت پدل‌ها با کیبورد
+			  // پیشنهاد ۲: حرکت پدل‌ها با اینرسی
 			  const move = (p, upKey, downKey, leftKey, rightKey)=>{
-			    let dx=0, dy=0;
-			    if(keys[upKey]) dy -= 1;
-			    if(keys[downKey]) dy += 1;
-			    if(keys[leftKey]) dx -= 1;
-			    if(keys[rightKey]) dx += 1;
-			    if(dx!==0 || dy!==0){
-			      const len = Math.hypot(dx,dy);
-			      p.vx = (dx/len) * p.speed;
-			      p.vy = (dy/len) * p.speed;
-			    } else if (p === paddleA && !(navigator.getGamepads&&navigator.getGamepads()[0])) {
-			      p.vx = 0; p.vy = 0;
-			    } else if (p === paddleB && !(navigator.getGamepads&&navigator.getGamepads()[1])) {
-			      p.vx = 0; p.vy = 0;
-			    }
+			    const damping = 0.94; // ضریب اصطکاک برای پدل
+			    let inputX = 0, inputY = 0;
+			    if(keys[upKey]) inputY -= 1;
+			    if(keys[downKey]) inputY += 1;
+			    if(keys[leftKey]) inputX -= 1;
+			    if(keys[rightKey]) inputX += 1;
+
+			    if (inputX !== 0 || inputY !== 0) {
+			        const len = Math.hypot(inputX, inputY);
+			        p.vx += (inputX / len) * p.acceleration * dt;
+			        p.vy += (inputY / len) * p.acceleration * dt;
+			    } else {
+                    // فقط در صورتی که گیم‌پد هم فعال نباشد، اصطکاک اعمال شود
+                    if (p === paddleA && !(navigator.getGamepads && navigator.getGamepads()[0])) {
+                        p.vx *= damping; p.vy *= damping;
+                    }
+                    if (p === paddleB && !(navigator.getGamepads && navigator.getGamepads()[1])) {
+                        p.vx *= damping; p.vy *= damping;
+                    }
+                }
+
+                // محدود کردن سرعت پدل
+                const currentSpeed = Math.hypot(p.vx, p.vy);
+                if (currentSpeed > p.maxSpeed) {
+                    const k = p.maxSpeed / currentSpeed;
+                    p.vx *= k;
+                    p.vy *= k;
+                }
+
 			    p.x += p.vx * dt; p.y += p.vy * dt;
 			    const minX = p===paddleA ? left + 8 : left + width/2 + 8;
 			    const maxX = p===paddleA ? left + width/2 - 8 : right - 8;
@@ -271,41 +286,58 @@
 			  // اصطکاک
 			  const friction = 0.995 ** (dt*60);
 			  puck.vx *= friction; puck.vy *= friction; puck.angularVelocity *= friction;
-			  if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; puck.angularVelocity = 0; }
+			  if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; }
+              if(Math.abs(puck.angularVelocity) < 0.1) { puck.angularVelocity = 0; }
 
-			  // برخورد با دیواره‌ها
-			  if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; puck.angularVelocity += puck.vx / puck.r * 0.5; playClick(600); }
-			  if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; puck.angularVelocity -= puck.vx / puck.r * 0.5; playClick(600); }
+			  // پیشنهاد ۳: برخورد با دیواره‌ها با تاثیر چرخش
+              const spinEffect = 0.06;
+			  if(puck.y - puck.r < top){ puck.y = top + puck.r; puck.vy *= -0.9; puck.vx += puck.angularVelocity * spinEffect; puck.angularVelocity += puck.vx / puck.r * 0.5; playClick(600); }
+			  if(puck.y + puck.r > bottom){ puck.y = bottom - puck.r; puck.vy *= -0.9; puck.vx -= puck.angularVelocity * spinEffect; puck.angularVelocity -= puck.vx / puck.r * 0.5; playClick(600); }
 
 			  // اهداف
 			  const goalHeight = Math.min(160, height*0.32);
 			  const goalTop = (top + bottom)/2 - goalHeight/2;
 			  const goalBottom = (top + bottom)/2 + goalHeight/2;
-			  if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('B'); } else { puck.x = left + puck.r; puck.vx *= -0.9; puck.angularVelocity += puck.vy / puck.r * 0.5; playClick(440);} }
-			  if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; puck.angularVelocity -= puck.vy / puck.r * 0.5; playClick(440); } }
+			  if(puck.x - puck.r <= left){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('B'); } else { puck.x = left + puck.r; puck.vx *= -0.9; puck.vy -= puck.angularVelocity * spinEffect; puck.angularVelocity += puck.vy / puck.r * 0.5; playClick(440);} }
+			  if(puck.x + puck.r >= right){ if(puck.y > goalTop && puck.y < goalBottom){ scorePoint('A'); } else { puck.x = right - puck.r; puck.vx *= -0.9; puck.vy += puck.angularVelocity * spinEffect; puck.angularVelocity -= puck.vy / puck.r * 0.5; playClick(440); } }
 
-			  // --- برخورد پَک با پدل (همیشه بازتاب ملایم) ---
+			  // پیشنهاد ۱: برخورد واقع‌گرایانه پک با پدل
 			  function collideP(p){
 			    const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
 			    const minD = puck.r + p.r;
 			    if(dist < minD){
 			      const nx = dx/dist, ny = dy/dist;
 			      const overlap = minD - dist + 0.001; puck.x += nx * overlap; puck.y += ny * overlap;
-			      const dot = puck.vx * nx + puck.vy * ny;
-			      puck.vx -= 1.1 * dot * nx; // بازتاب ملایم
-			      puck.vy -= 1.1 * dot * ny;
+
+                  // محاسبه سرعت نسبی
+                  const vdx = puck.vx - p.vx;
+                  const vdy = puck.vy - p.vy;
+                  const dot = vdx * nx + vdy * ny;
+
+                  if (dot < 0) { // فقط در صورتی که به هم نزدیک می‌شوند برخورد کنند
+                    const restitution = 1.6; // ضریب بازگشت‌پذیری (بیشتر از ۱ برای حس بهتر در بازی آرکید)
+                    const impulse = -(restitution) * dot / (1/puck.mass + 1/p.mass);
+                    puck.vx += impulse * nx / puck.mass;
+                    puck.vy += impulse * ny / puck.mass;
+                    // پدل‌ها هم کمی پس زده شوند (اختیاری)
+                    // p.vx -= impulse * nx / p.mass;
+                    // p.vy -= impulse * ny / p.mass;
+
+                    // انتقال مقداری از چرخش
+                    puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
+                  }
 			    }
 			  }
 			  collideP(paddleA); collideP(paddleB);
 
-			  // --- پردازش ضربه‌ها (کیبورد و گیم‌پد) ---
+			  // پردازش ضربه‌ها (کیبورد و گیم‌پد) - این بخش برای ضربه‌های ویژه حفظ شده
 			  processHits();
 			}
 
-			// وضعیت ضربه برای جلوگیری از اسپم‌شدن در نگه‌داشتن دکمه
+			// وضعیت ضربه برای جلوگیری از اسپم‌شدن
 			const hitState = { A:false, B:false };
 
-			// تابع اصلی اجرای فیزیک ضربه
+			// تابع اجرای فیزیک ضربه ویژه
 			function performHitOnPuck(p) {
 			    const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
 			    const reach = p.r + puck.r + 26; // محدودهٔ اثر ضربه
@@ -327,7 +359,7 @@
 			    }
 			}
 
-			// تابع بررسی و اعمال ضربه برای هر دو بازیکن
+			// تابع بررسی و اعمال ضربه
 			function processHits() {
 			    // بازیکن A
 			    let keyboardHitIntentA = false;
@@ -337,11 +369,11 @@
 			    if (dxA !== 0 || dyA !== 0) {
 			        const puckDx = puck.x - paddleA.x;
 			        const puckDy = puck.y - paddleA.y;
-			        if ((dxA * puckDx + dyA * puckDy) > 0) { // اگر حرکت به سمت توپ باشد
+			        if ((dxA * puckDx + dyA * puckDy) > 0) {
 			            keyboardHitIntentA = true;
 			        }
 			    }
-			    const totalHitIntentA = !!keys['f'] || keyboardHitIntentA; // ترکیب ورودی گیم‌پد و کیبورد
+			    const totalHitIntentA = !!keys['f'] || keyboardHitIntentA;
 			    if (totalHitIntentA) {
 			        if (!hitState.A) {
 			             performHitOnPuck(paddleA);
@@ -359,11 +391,11 @@
 			    if (dxB !== 0 || dyB !== 0) {
 			        const puckDx = puck.x - paddleB.x;
 			        const puckDy = puck.y - paddleB.y;
-			        if ((dxB * puckDx + dyB * puckDy) > 0) { // اگر حرکت به سمت توپ باشد
+			        if ((dxB * puckDx + dyB * puckDy) > 0) {
 			            keyboardHitIntentB = true;
 			        }
 			    }
-			    const totalHitIntentB = !!keys['j'] || keyboardHitIntentB; // ترکیب ورودی گیم‌پد و کیبورد
+			    const totalHitIntentB = !!keys['j'] || keyboardHitIntentB;
 			    if (totalHitIntentB) {
 			        if (!hitState.B) {
 			            performHitOnPuck(paddleB);
@@ -444,8 +476,8 @@
 			}
 
             function drawPaddle(p, c, inner) {
-                const shadowOffsetX = 6 + (p.vx / p.speed) * 4;
-                const shadowOffsetY = 10 + (p.vy / p.speed) * 4;
+                const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
+                const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
                 ctx.beginPath();
                 ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r * 1.1, p.r * 0.5, 0, 0, Math.PI * 2);
                 ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -495,9 +527,9 @@
 			  ctx.beginPath();
 			  ctx.arc(0,0,puck.r,0,Math.PI*2);
 			  const g = ctx.createRadialGradient(-puck.r*0.3, -puck.r*0.3, 0, 0, 0, puck.r);
-			  g.addColorStop(0, '#f0f0f0'); // هایلایت روشن
+			  g.addColorStop(0, '#f0f0f0');
 			  g.addColorStop(0.5, '#444');
-			  g.addColorStop(1, '#111'); // لبه تاریک
+			  g.addColorStop(1, '#111');
 			  ctx.fillStyle=g;
 			  ctx.fill();
 
@@ -508,7 +540,7 @@
 			  ctx.strokeStyle='rgba(0,0,0,0.4)';
 			  ctx.stroke();
 
-			  // لوگو یا طرح روی پک (اختیاری)
+			  // لوگو یا طرح روی پک
 			  ctx.beginPath();
 			  ctx.arc(0,0, puck.r*0.6,0,Math.PI*2);
 			  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
