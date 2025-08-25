@@ -460,7 +460,7 @@ function scorePoint(player){
     messageOverlay.innerHTML = `
   <div style="text-align:center">
     <div id="lottieEmoji" style="width:100px; height:100px; margin:0 auto; display:block;"></div>
-    <div style="font-size:40px; margin-top:10px;">گل به خودی</div>
+    <div style="font-size:40px; margin-top:50px;">گل به خودی</div>
   </div>
 `;
 
