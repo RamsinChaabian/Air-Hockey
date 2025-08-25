@@ -489,6 +489,21 @@
 			  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(255,255,255,0.08)'; roundRect(ctx,left+3,top+3,width-6,height-6,22); ctx.stroke();
 
 			  ctx.beginPath(); ctx.moveTo(left + width/2, top+12); ctx.lineTo(left + width/2, bottom-12); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 3; ctx.stroke();
+			  
+			  // --- START: Added Penalty Boxes ---
+			  const penaltyBoxWidth = width * 0.25;
+			  const penaltyBoxHeight = height * 0.7;
+			  const penaltyBoxTop = (top + bottom) / 2 - penaltyBoxHeight / 2;
+			  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+			  ctx.lineWidth = 2;
+			  // Left Penalty Box
+			  roundRect(ctx, left, penaltyBoxTop, penaltyBoxWidth, penaltyBoxHeight, 15);
+			  ctx.stroke();
+			  // Right Penalty Box
+			  roundRect(ctx, right - penaltyBoxWidth, penaltyBoxTop, penaltyBoxWidth, penaltyBoxHeight, 15);
+			  ctx.stroke();
+			  // --- END: Added Penalty Boxes ---
+
 			  const goalHeight = Math.min(160, height*0.32);
 			  const goalTop = (top + bottom)/2 - goalHeight/2;
 			  ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(ctx,left-6,goalTop, 12, goalHeight,6); ctx.fill();
@@ -511,9 +526,7 @@
 			    ctx.fill();
 			    flashTimer -= 1/60;
 			  }
-
-			  const shine = ctx.createLinearGradient(0,tableCoords(w,h).top,0,tableCoords(w,h).top+height*0.4); shine.addColorStop(0,'rgba(255,255,255,0.06)'); shine.addColorStop(1,'rgba(255,255,255,0)');
-			  ctx.fillStyle = shine; roundRect(ctx,tableCoords(w,h).left+6,tableCoords(w,h).top+6,width-12, Math.min(72,height*0.28), 20); ctx.fill();
+			  
 			}
 
 			function drawPaddle(p, c, inner) {
