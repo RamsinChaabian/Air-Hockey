@@ -401,6 +401,15 @@ function stepPhysics(dt){
   // به‌روز‌رسانی پک
   puck.x += puck.vx * dt; puck.y += puck.vy * dt; puck.rotation += puck.angularVelocity * dt;
 
+  // --- START: کد جدید برای اصلاح منطق گل به خودی ---
+  const centerLine = left + width / 2;
+  // اگر توپ از خط وسط عبور کرد، آخرین لمس را پاک کن
+  if ((puck.vx > 0 && (puck.x - puck.vx * dt) < centerLine && puck.x >= centerLine) || 
+      (puck.vx < 0 && (puck.x - puck.vx * dt) > centerLine && puck.x <= centerLine)) {
+    lastTouch = null;
+  }
+  // --- END: کد جدید ---
+
   const friction = 0.995 ** (dt*60);
   puck.vx *= friction; puck.vy *= friction; puck.angularVelocity *= friction;
   if(Math.hypot(puck.vx,puck.vy) < 6) { puck.vx = 0; puck.vy = 0; }
