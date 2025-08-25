@@ -104,7 +104,7 @@
 			const playerALabel = document.getElementById('playerALabel');
 
 			// --- وضعیت بازی ---
-			const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer' };
+			const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer', penaltyFor: null };
 
 			// اندازه‌گیری و فول‌اسکرین
 			function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
@@ -250,6 +250,11 @@
 
 			// --- AI هوشمند: دفاع + شوت محاسبه‌شده ---
 			function aiControl(dt) {
+			  if (state.penaltyFor === 'B') {
+				paddleA.vx *= 0.9; paddleA.vy *= 0.9;
+				paddleA.x += paddleA.vx * dt; paddleA.y += paddleA.vy * dt;
+				return;
+			  }
 			  const {left, right, top, bottom, width, height} = tableCoords(canvas.width, canvas.height);
 			  const p = paddleA; // AI روی سمت چپ
 			  const goalHeight = Math.min(160, height*0.32);
@@ -382,11 +387,57 @@
 			  if (who==='A') shoot.cooldownA = shoot.cooldownHuman;
 			  if (who==='B') shoot.cooldownB = shoot.cooldownHuman;
 			}
+			function triggerPenalty(player) {
+				if (state.running === false || state.penaltyFor) return;
+
+				state.penaltyFor = player;
+				puck.vx = 0;
+				puck.vy = 0;
+				puck.angularVelocity = 0;
+
+				const {left, right, top, bottom, width, height} = tableCoords(canvas.width, canvas.height);
+				const penaltySpotY = (top + bottom) / 2;
+
+				if (player === 'A') {
+					puck.x = left + width * 0.25; // Center of the left penalty box
+					puck.y = penaltySpotY;
+					paddleA.x = left + width * 0.15;
+					paddleA.y = penaltySpotY;
+					paddleA.vx = 0; paddleA.vy = 0;
+				} else { // Player B
+					puck.x = right - width * 0.25; // Center of the right penalty box
+					puck.y = penaltySpotY;
+					paddleB.x = right - width * 0.15;
+					paddleB.y = penaltySpotY;
+					paddleB.vx = 0; paddleB.vy = 0;
+				}
+
+				playWhistle();
+			}
 
 			function stepPhysics(dt){
 			  const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
 
+			  const cornerDist = puck.r + 20; 
+			  if (!state.penaltyFor) {
+				if (distance(puck, {x: left, y: top}) < cornerDist) { triggerPenalty('A'); return; }
+				if (distance(puck, {x: left, y: bottom}) < cornerDist) { triggerPenalty('A'); return; }
+				if (distance(puck, {x: right, y: top}) < cornerDist) { triggerPenalty('B'); return; }
+				if (distance(puck, {x: right, y: bottom}) < cornerDist) { triggerPenalty('B'); return; }
+			  }
+
 			  const move = (p, upKey, downKey, leftKey, rightKey)=>{
+				if ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA)) {
+					p.vx *= 0.94;
+					p.vy *= 0.94;
+					p.x += p.vx * dt;
+					p.y += p.vy * dt;
+					const minX = p===paddleA ? left + 8 : left + width/2 + 8;
+					const maxX = p===paddleA ? left + width/2 - 8 : right - 8;
+					p.x = Math.max(minX + p.r, Math.min(maxX - p.r, p.x));
+					p.y = Math.max(top + p.r, Math.min(bottom - p.r, p.y));
+					return;
+				}
 			    const damping = 0.94;
 			    let inputX = 0, inputY = 0;
 			    if(keys[upKey]) inputY -= 1; if(keys[downKey]) inputY += 1;
@@ -439,6 +490,11 @@
 			    const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
 			    const minD = puck.r + p.r;
 			    if(dist < minD){
+				  if (state.penaltyFor) {
+					if ((state.penaltyFor === 'A' && p === paddleA) || (state.penaltyFor === 'B' && p === paddleB)) {
+						state.penaltyFor = null;
+					}
+				  }
 			      const nx = dx/dist, ny = dy/dist;
 			      const overlap = minD - dist + 0.001; puck.x += nx * overlap; puck.y += ny * overlap;
 			      const vdx = puck.vx - p.vx; const vdy = puck.vy - p.vy; const dotN = vdx * nx + vdy * ny;
