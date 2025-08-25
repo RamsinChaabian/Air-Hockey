@@ -13,3 +13,24 @@ canvas{display:block;cursor: none;}
 .ghost{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#02ffa0}
 .fsPrompt{position:fixed;left:50%;top:70%;transform:translate(-50%,-50%);z-index:60;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px}
 @media (max-width:720px){.ui{top:10px}}
+
+/* پیام/ایموجی وسط صفحه */
+#messageOverlay{
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%) scale(1);
+  font-size: clamp(72px, 18vw, 180px);
+  font-weight: 900;
+  opacity: 0;
+  color: white;
+  z-index: 100;
+  pointer-events: none;
+  text-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  font-feature-settings: "ss01";
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+#messageOverlay.show{
+  opacity: 1;
+  transform: translate(-50%,-50%) scale(1.2);
+}
