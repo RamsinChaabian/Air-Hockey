@@ -441,7 +441,13 @@ function scorePoint(player){
   const ownGoal = (lastTouch && lastTouch !== player);
 
   if (ownGoal) {
-    messageOverlay.textContent = "😂";
+    messageOverlay.innerHTML = `
+		<div style="text-align:center">
+		<div style="font-size:40px">😂</div>
+		<div style="font-size:40px">گل به خودی</div>
+		</div>
+		`;
+
     messageOverlay.style.color = "white";
   } else {
     if (player === 'A') {
