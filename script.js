@@ -11,6 +11,7 @@ const scoreBEl = document.getElementById('scoreB');
 const timerEl = document.getElementById('timer');
 const matchMinutesSelect = document.getElementById('matchMinutes');
 const playerALabel = document.getElementById('playerALabel');
+const messageOverlay = document.getElementById('messageOverlay'); // پیام/ایموجی وسط صفحه
 
 // --- وضعیت بازی ---
 const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer', penaltyFor: null };
@@ -30,6 +31,9 @@ fsBtn.addEventListener('click', tryFullscreen);
 let flashTimer = 0; let flashSide = null;
 let shakeTimer = 0; let shakeIntensity = 0;
 
+// ### برای تشخیص گل به خودی:
+let lastTouch = null; // 'A' یا 'B'، کسی که آخرین بار به توپ برخورد کرده
+
 function tableCoords(w,h){
   const padding = Math.min(w*0.06,60);
   const left = padding, right = w-padding;
@@ -43,6 +47,7 @@ function resetObjects(){
   puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, mass:1, maxSpeed:1500, rotation:0, angularVelocity:0};
   paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
   paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
+  lastTouch = null; // شروع تازه
 }
 resetObjects();
 
@@ -399,6 +404,9 @@ function stepPhysics(dt){
     const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
     const minD = puck.r + p.r;
     if(dist < minD){
+      // ثبت آخرین لمس کننده برای تشخیص گل به خودی
+      lastTouch = (p === paddleA ? 'A' : 'B');
+
       if (state.penaltyFor) {
         if ((state.penaltyFor === 'A' && p === paddleA) || (state.penaltyFor === 'B' && p === paddleB)) {
             state.penaltyFor = null;
@@ -428,10 +436,36 @@ function scorePoint(player){
   scoreAEl.textContent = state.scoreA; scoreBEl.textContent = state.scoreB;
   flashTimer = 0.5; flashSide = player; shakeTimer = 0.3; shakeIntensity = 5;
   playCheer(0.1); playWhistle();
+
+  // تشخیص گل به خودی: اگر آخرین لمس‌کننده با گل‌زن یکی نباشد
+  const ownGoal = (lastTouch && lastTouch !== player);
+
+  if (ownGoal) {
+    messageOverlay.textContent = "😂";
+    messageOverlay.style.color = "white";
+  } else {
+    if (player === 'A') {
+      messageOverlay.textContent = String(state.scoreA);
+      messageOverlay.style.color = "#ff6b6b"; // قرمز
+    } else {
+      messageOverlay.textContent = String(state.scoreB);
+      messageOverlay.style.color = "#ffd166"; // زرد
+    }
+  }
+  // نمایش و محو
+  messageOverlay.classList.remove('show'); // ریست سریع برای تریگر مجدد
+  // فورس رفلـو برای اعمال دوباره transition
+  void messageOverlay.offsetWidth;
+  messageOverlay.classList.add('show');
+  setTimeout(()=> messageOverlay.classList.remove('show'), 1200);
+
   const {left,right,top,bottom} = tableCoords(canvas.width,canvas.height);
   puck.x = (left+right)/2; puck.y = (top+bottom)/2; puck.vx = (player==='A'? -260:260); puck.vy = 0; puck.angularVelocity = 0;
   // کمی استراحت به AI بعد از گل
   shoot.aiCooldown = 0.5;
+
+  // بعد از ثبت گل، لمس قبلی را پاک می‌کنیم
+  lastTouch = null;
 }
 
 function draw(){
@@ -554,6 +588,8 @@ function startMatch(minutes, mode){
   startCrowd();
   state.matchTime = Math.max(10, Math.floor(minutes*60)); state.timeLeft = state.matchTime; state.running = true; state.scoreA=0; state.scoreB=0; scoreAEl.textContent=0; scoreBEl.textContent=0;
   timerEl.textContent = formatTime(state.timeLeft);
+  lastTouch = null; // شروع مسابقه، لمس قبلی خالی
+  messageOverlay.classList.remove('show');
   if(matchInterval) clearInterval(matchInterval);
   matchInterval = setInterval(()=>{
     state.timeLeft -= 1; timerEl.textContent = formatTime(state.timeLeft);
