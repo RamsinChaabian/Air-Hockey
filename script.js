@@ -313,17 +313,33 @@ function triggerPenalty(player) {
     const penaltySpotY = (top + bottom) / 2;
 
     if (player === 'A') {
-        puck.x = left + width * 0.25; // Center of the left penalty box
+        // قرار دادن توپ در نقطه پنالتی چپ
+        puck.x = left + width * 0.25;
         puck.y = penaltySpotY;
+        // بازنشانی موقعیت پدل خطاکار (A)
         paddleA.x = left + width * 0.15;
         paddleA.y = penaltySpotY;
         paddleA.vx = 0; paddleA.vy = 0;
-    } else { // Player B
-        puck.x = right - width * 0.25; // Center of the right penalty box
-        puck.y = penaltySpotY;
+        // --- START: کد جدید برای بازنشانی پدل حریف ---
+        // بازنشانی موقعیت پدل حریف (B) به نقطه شروع
         paddleB.x = right - width * 0.15;
         paddleB.y = penaltySpotY;
         paddleB.vx = 0; paddleB.vy = 0;
+        // --- END: کد جدید ---
+    } else { // Player B
+        // قرار دادن توپ در نقطه پنالتی راست
+        puck.x = right - width * 0.25;
+        puck.y = penaltySpotY;
+        // بازنشانی موقعیت پدل خطاکار (B)
+        paddleB.x = right - width * 0.15;
+        paddleB.y = penaltySpotY;
+        paddleB.vx = 0; paddleB.vy = 0;
+        // --- START: کد جدید برای بازنشانی پدل حریف ---
+        // بازنشانی موقعیت پدل حریف (A) به نقطه شروع
+        paddleA.x = left + width * 0.15;
+        paddleA.y = penaltySpotY;
+        paddleA.vx = 0; paddleA.vy = 0;
+        // --- END: کد جدید ---
     }
 
     playWhistle();
@@ -442,11 +458,20 @@ function scorePoint(player){
 
   if (ownGoal) {
     messageOverlay.innerHTML = `
-		<div style="text-align:center">
-		<div style="font-size:40px">😂</div>
-		<div style="font-size:40px">گل به خودی</div>
-		</div>
-		`;
+  <div style="text-align:center">
+    <div id="lottieEmoji" style="width:100px; height:100px; margin:0 auto;"></div>
+    <div style="font-size:40px">گل به خودی</div>
+  </div>
+`;
+
+lottie.loadAnimation({
+  container: document.getElementById('lottieEmoji'),
+  renderer: 'svg',
+  loop: true,
+  autoplay: true,
+  path: 'lottie.json'
+});
+
 
     messageOverlay.style.color = "white";
   } else {
@@ -507,7 +532,19 @@ function draw(){
   // Right Penalty Box
   roundRect(ctx, right - penaltyBoxWidth, penaltyBoxTop, penaltyBoxWidth, penaltyBoxHeight, 15);
   ctx.stroke();
-  // --- END: Added Penalty Boxes ---
+  const penaltySpotRadius = 30; // شعاع دایره نقطه پنالتی
+  ctx.fillStyle = 'rgba(153,255,153,0.18)'; // استفاده از همان رنگ دایره وسط زمین
+
+  // دایره نقطه پنالتی چپ
+  ctx.beginPath();
+  ctx.arc(left + width * 0.25, (top + bottom) / 2, penaltySpotRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // دایره نقطه پنالتی راست
+  ctx.beginPath();
+  ctx.arc(right - width * 0.25, (top + bottom) / 2, penaltySpotRadius, 0, Math.PI * 2);
+  ctx.fill();
+    // --- END: Added Penalty Boxes ---
 
   const goalHeight = Math.min(160, height*0.32);
   const goalTop = (top + bottom)/2 - goalHeight/2;
