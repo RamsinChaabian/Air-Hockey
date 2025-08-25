@@ -459,10 +459,11 @@ function scorePoint(player){
   if (ownGoal) {
     messageOverlay.innerHTML = `
   <div style="text-align:center">
-    <div id="lottieEmoji" style="width:100px; height:100px; margin:0 auto;"></div>
-    <div style="font-size:40px">گل به خودی</div>
+    <div id="lottieEmoji" style="width:100px; height:100px; margin:0 auto; display:block;"></div>
+    <div style="font-size:40px; margin-top:10px;">گل به خودی</div>
   </div>
 `;
+
 
 lottie.loadAnimation({
   container: document.getElementById('lottieEmoji'),
