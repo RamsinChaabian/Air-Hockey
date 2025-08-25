@@ -348,7 +348,7 @@ function triggerPenalty(player) {
 function stepPhysics(dt){
   const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
 
-  const cornerDist = puck.r + 20; 
+  const cornerDist = puck.r + 20;
   if (!state.penaltyFor) {
     if (distance(puck, {x: left, y: top}) < cornerDist) { triggerPenalty('A'); return; }
     if (distance(puck, {x: left, y: bottom}) < cornerDist) { triggerPenalty('A'); return; }
@@ -400,15 +400,6 @@ function stepPhysics(dt){
 
   // به‌روز‌رسانی پک
   puck.x += puck.vx * dt; puck.y += puck.vy * dt; puck.rotation += puck.angularVelocity * dt;
-
-  // --- START: کد جدید برای اصلاح منطق گل به خودی ---
-  const centerLine = left + width / 2;
-  // اگر توپ از خط وسط عبور کرد، آخرین لمس را پاک کن
-  if ((puck.vx > 0 && (puck.x - puck.vx * dt) < centerLine && puck.x >= centerLine) || 
-      (puck.vx < 0 && (puck.x - puck.vx * dt) > centerLine && puck.x <= centerLine)) {
-    lastTouch = null;
-  }
-  // --- END: کد جدید ---
 
   const friction = 0.995 ** (dt*60);
   puck.vx *= friction; puck.vy *= friction; puck.angularVelocity *= friction;
