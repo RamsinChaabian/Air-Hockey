@@ -304,6 +304,13 @@ function attemptShoot(p, opts={}){
 function triggerPenalty(player) {
     if (state.running === false || state.penaltyFor) return;
 
+    messageOverlay.innerHTML = `<div style="font-size:80px; text-align:center;">اوت</div>`;
+    messageOverlay.style.color = "white";
+    messageOverlay.classList.remove('show');
+    void messageOverlay.offsetWidth;
+    messageOverlay.classList.add('show');
+    setTimeout(() => messageOverlay.classList.remove('show'), 1200);
+
     state.penaltyFor = player;
     puck.vx = 0;
     puck.vy = 0;
@@ -657,14 +664,14 @@ function startMatch(minutes, mode){
 function endMatch(){
   state.running=false; stopCrowd(); if(matchInterval) clearInterval(matchInterval);
   modal.style.display = 'flex';
-  const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن چپ';
+  const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن چپ ←';
   const winner = state.scoreA > state.scoreB ? `${winnerA} پیروز شد!` : (state.scoreB > state.scoreA ? 'بازیکن راست پیروز شد!' : 'تساوی!');
   modal.querySelector('.panel').innerHTML = `
     <h2 style="text-align:center">پایان مسابقه</h2>
     <div style="font-size:32px;margin:10px 0;color:#ffd166; text-align:center;">${winner}</div>
     <div style="display:flex;gap:12px;margin:10px 0; justify-content:center;">
       <div class="scoreBox">
-        <div style="text-align:center"><div class="label">→ بازیکن</div><div class="scoreNumber">${state.scoreB}</div></div>
+        <div style="text-align:center"><div class="label">→ بازیکن راست</div><div class="scoreNumber">${state.scoreB}</div></div>
       </div>
       <div class="scoreBox">
         <div style="text-align:center"><div class="label">${winnerA}</div><div class="scoreNumber">${state.scoreA}</div></div>
