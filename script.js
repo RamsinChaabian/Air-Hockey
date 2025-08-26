@@ -45,8 +45,8 @@ let puck, paddleA, paddleB;
 function resetObjects(){
   const {left,right,top,bottom,width,height} = tableCoords(canvas.width,canvas.height);
   puck = {x:(left+right)/2, y:(top+bottom)/2, r: Math.max(12, Math.min(28, width*0.02)), vx:0, vy:0, mass:1, maxSpeed:1500, rotation:0, angularVelocity:0};
-  paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
-  paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0};
+  paddleA = {x:left + width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0, hitAnimation: 0};
+  paddleB = {x:right - width*0.15, y:(top+bottom)/2, r: Math.max(22, Math.min(44, width*0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx:0, vy:0, hitAnimation: 0};
   lastTouch = null; // شروع تازه
 }
 resetObjects();
@@ -420,6 +420,7 @@ function stepPhysics(dt){
     const dx = puck.x - p.x; const dy = puck.y - p.y; const dist = Math.hypot(dx,dy);
     const minD = puck.r + p.r;
     if(dist < minD){
+      paddleHitEffect(p);
       // ثبت آخرین لمس کننده برای تشخیص گل به خودی
       lastTouch = (p === paddleA ? 'A' : 'B');
 
@@ -445,6 +446,11 @@ function stepPhysics(dt){
   // کاهش کول‌داون‌های انسانی
   shoot.cooldownA = Math.max(0, shoot.cooldownA - dt);
   shoot.cooldownB = Math.max(0, shoot.cooldownB - dt);
+}
+
+function paddleHitEffect(p) {
+  p.hitAnimation = 0.2; // duration of the animation in seconds
+  playClick(1200, 0.05, 0.15); // A slightly higher pitched click
 }
 
 function scorePoint(player){
@@ -500,7 +506,7 @@ lottie.loadAnimation({
   lastTouch = null;
 }
 
-function draw(){
+function draw(dt){
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0,0,w,h);
   const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#011121'); g.addColorStop(1,'#032a3b');
@@ -554,8 +560,8 @@ function draw(){
   ctx.fillStyle = 'rgba(153,255,153,0.6)'; roundRect(ctx,right-6,goalTop,6,goalHeight,6); ctx.fill();
   ctx.beginPath(); ctx.arc((left+right)/2, (top+bottom)/2, 8,0,Math.PI*2); ctx.fillStyle='rgba(153,255,153,0.18)'; ctx.fill();
 
-  drawPaddle(paddleA,'#ff6b6b','#731010');
-  drawPaddle(paddleB,'#ffd166','#6a4f00');
+  drawPaddle(paddleA,'#ff6b6b','#731010', dt);
+  drawPaddle(paddleB,'#ffd166','#6a4f00', dt);
   drawPuck();
 
   if(flashTimer > 0) {
@@ -572,20 +578,28 @@ function draw(){
   
 }
 
-function drawPaddle(p, c, inner) {
+function drawPaddle(p, c, inner, dt) {
+  let radius = p.r;
+  if (p.hitAnimation > 0) {
+    const animationProgress = 1 - (p.hitAnimation / 0.2);
+    radius = p.r * (1 + 0.2 * Math.sin(animationProgress * Math.PI));
+    p.hitAnimation -= dt;
+  } else {
+    p.hitAnimation = 0;
+  }
   const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
   const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
-  ctx.beginPath(); ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, p.r * 1.1, p.r * 0.5, 0, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, radius * 1.1, radius * 0.5, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-  const g = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, p.r * 0.1, p.x, p.y, p.r);
+  ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+  const g = ctx.createRadialGradient(p.x - radius * 0.4, p.y - radius * 0.4, radius * 0.1, p.x, p.y, radius);
   g.addColorStop(0, 'rgba(255,255,255,0.8)'); g.addColorStop(0.3, c); g.addColorStop(1, inner);
   ctx.fillStyle = g; ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5, 0, Math.PI * 2);
-  const highlight = ctx.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.3, 0, p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.5);
+  ctx.beginPath(); ctx.arc(p.x - radius * 0.2, p.y - radius * 0.2, radius * 0.5, 0, Math.PI * 2);
+  const highlight = ctx.createRadialGradient(p.x - radius * 0.3, p.y - radius * 0.3, 0, p.x - radius * 0.2, p.y - radius * 0.2, radius * 0.5);
   highlight.addColorStop(0, 'rgba(255,255,255,0.7)'); highlight.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = highlight; ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 3; ctx.stroke();
 }
 
@@ -618,7 +632,7 @@ function loop(now){
     ctx.translate(offsetX, offsetY);
     shakeTimer -= dt; shakeIntensity *= 0.95;
   }
-  draw();
+  draw(dt);
   if(shakeTimer > 0){ ctx.translate(-offsetX, -offsetY); }
   requestAnimationFrame(loop);
 }
