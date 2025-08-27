@@ -197,11 +197,6 @@ function calculateBankShotTarget() {
  * @param {number} dt - Delta time.
  */
 function aiControl(dt) {
-    if (state.penaltyFor === 'B') {
-        paddleA.vx *= 0.9; paddleA.vy *= 0.9;
-        paddleA.x += paddleA.vx * dt; paddleA.y += paddleA.vy * dt;
-        return;
-    }
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
     const p = paddleA;
     const goalHeight = Math.min(160, height * 0.32);
@@ -230,7 +225,7 @@ function aiControl(dt) {
     };
 
 
-    if (!isPuckInAIHalf) {
+    if (!isPuckInAIHalf && state.penaltyFor !== 'B') {
         // بازگشت به موقعیت دفاعی بر اساس مکان *پیش‌بینی‌شده* پوک
         const target = { x: DEF_X, y: clamp(predictedPuck.y, top + p.r, bottom - p.r) };
         moveTowards(p, target, maxAISpeed, dt);
@@ -244,7 +239,7 @@ function aiControl(dt) {
 
     // ابتدا تلاش برای شوت زاویه‌دار
     const bankShotTarget = calculateBankShotTarget();
-    if (bankShotTarget) {
+    if (bankShotTarget && state.penaltyFor !== 'B') {
         aimTarget = bankShotTarget;
         isBankShot = true;
     } else {
@@ -286,28 +281,38 @@ function aiControl(dt) {
  * @param {string} player - The player who committed the foul ('A' or 'B').
  */
 function triggerPenalty(player) {
-    if (!state.running || state.penaltyFor) return;
+    if (!state.running) return;
 
-    showMessage("اوت", "white");
-    state.penaltyFor = player;
+    // Handle cases where lastTouch is null (e.g., puck gets stuck at the very start)
+    const { left, right } = tableCoords(canvas.width, canvas.height);
+    let offender = player;
+    if (!offender) {
+        offender = puck.x > (left + right) / 2 ? 'B' : 'A';
+    }
+
+    // Only trigger the penalty visuals and sound if we are not already in a penalty state
+    if (!state.penaltyFor) {
+        showMessage("اوت", "white");
+        playWhistle();
+    }
+
+    state.penaltyFor = offender;
     puck.vx = puck.vy = puck.angularVelocity = 0;
 
-    const { left, right, top, bottom, width } = tableCoords(canvas.width, canvas.height);
+    const { top, bottom, width } = tableCoords(canvas.width, canvas.height);
     const penaltySpotY = (top + bottom) / 2;
 
-    if (player === 'A') {
-        puck.x = left + width * 0.25;
-        paddleA.x = left + width * 0.15;
-        paddleB.x = right - width * 0.15;
-    } else {
+    if (offender === 'A') {
         puck.x = right - width * 0.25;
         paddleB.x = right - width * 0.15;
         paddleA.x = left + width * 0.15;
+    } else {
+        puck.x = left + width * 0.25;
+        paddleA.x = left + width * 0.15;
+        paddleB.x = right - width * 0.15;
     }
     puck.y = paddleA.y = paddleB.y = penaltySpotY;
     paddleA.vx = paddleA.vy = paddleB.vx = paddleB.vy = 0;
-
-    playWhistle();
 }
 
 /**
@@ -318,11 +323,14 @@ function stepPhysics(dt) {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
 
     const cornerDist = puck.r + 20;
-    if (!state.penaltyFor) {
-        if (distance(puck, { x: left, y: top }) < cornerDist) { triggerPenalty('A'); return; }
-        if (distance(puck, { x: left, y: bottom }) < cornerDist) { triggerPenalty('A'); return; }
-        if (distance(puck, { x: right, y: top }) < cornerDist) { triggerPenalty('B'); return; }
-        if (distance(puck, { x: right, y: bottom }) < cornerDist) { triggerPenalty('B'); return; }
+    if (
+        distance(puck, { x: left, y: top }) < cornerDist ||
+        distance(puck, { x: left, y: bottom }) < cornerDist ||
+        distance(puck, { x: right, y: top }) < cornerDist ||
+        distance(puck, { x: right, y: bottom }) < cornerDist
+    ) {
+        triggerPenalty(lastTouch);
+        return;
     }
 
     const move = (p, upKey, downKey, leftKey, rightKey) => {
@@ -620,6 +628,29 @@ function draw(dt) {
     ctx.arc((left + right) / 2, (top + bottom) / 2, width * 0.1, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.stroke();
+
+    // Draw penalty zones
+    const cornerRadius = (puck?.r || 12) + 20;
+    ctx.setLineDash([8, 10]);
+    ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+    ctx.lineWidth = 3;
+    // Top-left
+    ctx.beginPath();
+    ctx.arc(left, top, cornerRadius, 0, Math.PI * 0.5);
+    ctx.stroke();
+    // Bottom-left
+    ctx.beginPath();
+    ctx.arc(left, bottom, cornerRadius, -Math.PI * 0.5, 0);
+    ctx.stroke();
+    // Top-right
+    ctx.beginPath();
+    ctx.arc(right, top, cornerRadius, Math.PI * 0.5, Math.PI);
+    ctx.stroke();
+    // Bottom-right
+    ctx.beginPath();
+    ctx.arc(right, bottom, cornerRadius, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
 
     const goalHeight = Math.min(160, height * 0.32);
