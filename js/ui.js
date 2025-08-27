@@ -24,7 +24,7 @@ function endMatch() {
     if (window.matchInterval) clearInterval(window.matchInterval);
 
     modal.style.display = 'flex';
-    const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن چپ ←';
+    const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی ←' : 'بازیکن چپ ←';
     const winner = state.scoreA > state.scoreB ? `${winnerA} پیروز شد!` : (state.scoreB > state.scoreA ? 'بازیکن راست پیروز شد!' : 'تساوی!');
 
     let finalMessage = `<h2 style="text-align:center">پایان مسابقه</h2>`;
