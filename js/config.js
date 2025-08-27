@@ -33,17 +33,22 @@ const keys = {};
 const activeTouch = {};
 const prevPad = {};
 
-// --- Shoot Mechanics ---
+// --- Shoot Mechanics (MODIFIED) ---
 const shoot = {
     cooldownA: 0,
     cooldownB: 0,
     aiCooldown: 0,
     distance: 18,
-    powerHuman: 2000,
+    // قدرت پایه برای شوت بازیکنان، حتی اگر دسته ثابت باشد
+    basePowerHuman: 800,
+    // میزان تاثیر سرعت دسته بر قدرت نهایی شوت
+    velocityPowerMultiplier: 1.8,
+    // قدرت هوش مصنوعی ثابت باقی می‌ماند
     powerAI: 4000,
     cooldownHuman: 0.35,
     cooldownAI: 0.65
 };
+
 
 // --- Effects ---
 let flashTimer = 0;
