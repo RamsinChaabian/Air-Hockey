@@ -14,7 +14,7 @@ const playerALabel = document.getElementById('playerALabel');
 const messageOverlay = document.getElementById('messageOverlay'); // پیام/ایموجی وسط صفحه
 
 // --- وضعیت بازی ---
-const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer', penaltyFor: null };
+const state = { running:false, scoreA:0, scoreB:0, matchTime: 120, timeLeft: 0, gameMode: 'singlePlayer', penaltyFor: null, goldenGoal: false };
 
 // اندازه‌گیری و فول‌اسکرین
 function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
@@ -463,6 +463,12 @@ function paddleHitEffect(p) {
 function scorePoint(player){
   if(player==='A') state.scoreA++; else state.scoreB++;
   scoreAEl.textContent = state.scoreA; scoreBEl.textContent = state.scoreB;
+  
+  if (state.goldenGoal) {
+      endMatch();
+      return;
+  }
+
   flashTimer = 0.5; flashSide = player; shakeTimer = 0.3; shakeIntensity = 5;
   playCheer(0.1); playWhistle();
 
@@ -648,6 +654,8 @@ requestAnimationFrame(loop);
 let matchInterval = null;
 function startMatch(minutes, mode){
   state.gameMode = mode;
+  state.goldenGoal = false;
+  timerEl.classList.remove('golden-goal-text');
   playerALabel.textContent = mode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن ←';
   if(audioCtx.state === 'suspended') audioCtx.resume();
   startCrowd();
@@ -657,17 +665,53 @@ function startMatch(minutes, mode){
   messageOverlay.classList.remove('show');
   if(matchInterval) clearInterval(matchInterval);
   matchInterval = setInterval(()=>{
-    state.timeLeft -= 1; timerEl.textContent = formatTime(state.timeLeft);
-    if(state.timeLeft <= 0){ endMatch(); }
+    if (state.running && !state.goldenGoal) {
+        state.timeLeft -= 1; 
+        timerEl.textContent = formatTime(state.timeLeft);
+        if(state.timeLeft <= 0){ 
+            handleTimeUp(); 
+        }
+    }
   },1000);
 }
+
+function handleTimeUp() {
+    if (state.scoreA === state.scoreB) {
+        // --- ورود به حالت گل طلایی ---
+        state.goldenGoal = true;
+        state.running = true; // اطمینان از ادامه بازی
+        if(matchInterval) clearInterval(matchInterval);
+        
+        timerEl.textContent = 'گل طلایی';
+        timerEl.classList.add('golden-goal-text');
+
+        messageOverlay.innerHTML = `<div class="golden-goal-text" style="font-size: clamp(48px, 12vw, 120px);">گل طلایی</div>`;
+        messageOverlay.classList.remove('show');
+        void messageOverlay.offsetWidth;
+        messageOverlay.classList.add('show');
+        setTimeout(()=> messageOverlay.classList.remove('show'), 2500);
+        playWhistle();
+
+    } else {
+        // --- پایان بازی با برنده مشخص ---
+        endMatch();
+    }
+}
+
+
 function endMatch(){
   state.running=false; stopCrowd(); if(matchInterval) clearInterval(matchInterval);
   modal.style.display = 'flex';
   const winnerA = state.gameMode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن چپ ←';
   const winner = state.scoreA > state.scoreB ? `${winnerA} پیروز شد!` : (state.scoreB > state.scoreA ? 'بازیکن راست پیروز شد!' : 'تساوی!');
+  
+  let finalMessage = `<h2 style="text-align:center">پایان مسابقه</h2>`;
+  if (state.goldenGoal) {
+      finalMessage += `<div style="font-size:24px; text-align:center; color:#FFD700; margin-bottom:12px;">با گل طلایی!</div>`;
+  }
+
   modal.querySelector('.panel').innerHTML = `
-    <h2 style="text-align:center">پایان مسابقه</h2>
+    ${finalMessage}
     <div style="font-size:32px;margin:10px 0;color:#ffd166; text-align:center;">${winner}</div>
     <div style="display:flex;gap:12px;margin:10px 0; justify-content:center;">
       <div class="scoreBox">
