@@ -205,7 +205,6 @@ function calculateBankShotTarget() {
     return bestTarget;
 }
 
-
 /**
  * AI logic for controlling paddle A in single-player mode.
  * @param {number} dt - Delta time.
@@ -217,7 +216,7 @@ function aiControl(dt) {
     const goalTop = (top + bottom) / 2 - goalHeight / 2;
     const goalBottom = (top + bottom) / 2 + goalHeight / 2;
     const enemyGoal = { x: right - 10, y: (top + bottom) / 2 };
-    const isPuckInAIHalf = puck.x < left + width * 0.55; // کمی محدوده را افزایش می‌دهیم
+    const isPuckInAIHalf = puck.x < left + width * 0.55;
 
     const clampToAIHalf = () => {
         p.x = Math.max(left + p.r, Math.min(left + width / 2 - p.r, p.x));
@@ -230,43 +229,48 @@ function aiControl(dt) {
 
     shoot.aiCooldown = Math.max(0, shoot.aiCooldown - dt);
 
-    // --- پیاده‌سازی پیشنهاد ۲: پیش‌بینی حرکت پوک ---
-    // مکان پوک را در 0.15 ثانیه آینده تخمین می‌زنیم
     const predictionTime = 0.15;
     const predictedPuck = {
         x: puck.x + puck.vx * predictionTime,
         y: puck.y + puck.vy * predictionTime
     };
 
-
     if (!isPuckInAIHalf && state.penaltyFor !== 'B') {
-        // بازگشت به موقعیت دفاعی بر اساس مکان *پیش‌بینی‌شده* پوک
         const target = { x: DEF_X, y: clamp(predictedPuck.y, top + p.r, bottom - p.r) };
         moveTowards(p, target, maxAISpeed, dt);
         clampToAIHalf();
         return;
     }
 
-    // --- پیاده‌سازی پیشنهاد ۳: شوت‌های زاویه‌دار ---
     let aimTarget = null;
     let isBankShot = false;
 
-    // ابتدا تلاش برای شوت زاویه‌دار
+    // --- ⭐ شروع تغییرات جدید: هدف‌گیری هوشمند ---
     const bankShotTarget = calculateBankShotTarget();
-    if (bankShotTarget && state.penaltyFor !== 'B') {
+    if (bankShotTarget && state.penaltyFor !== 'B' && Math.random() < 0.4) { // با ۴۰ درصد احتمال، شوت زاویه‌دار را امتحان می‌کند
         aimTarget = bankShotTarget;
         isBankShot = true;
     } else {
-        // اگر شوت زاویه‌دار ممکن نبود، یک شوت مستقیم را هدف‌گیری کن
-        const aimY = clamp(enemyGoal.y + (Math.random() * 40 - 20), goalTop + 12, goalBottom - 12);
-        aimTarget = { x: enemyGoal.x, y: aimY };
-    }
+        // تحلیل موقعیت بازیکن حریف
+        const paddleB_Y_Ratio = (paddleB.y - goalTop) / goalHeight;
 
-    // بردار هدف‌گیری بر اساس هدف انتخابی (مستقیم یا زاویه‌دار) و مکان *پیش‌بینی‌شده* پوک
+        let targetY;
+        // اگر بازیکن در نیمه بالایی دروازه است، به نیمه پایینی شوت بزن
+        if (paddleB_Y_Ratio < 0.5) {
+            targetY = enemyGoal.y + (goalHeight / 4) + (Math.random() * (goalHeight / 4));
+        } else { // در غیر این صورت، به نیمه بالایی شوت بزن
+            targetY = enemyGoal.y - (goalHeight / 4) - (Math.random() * (goalHeight / 4));
+        }
+        
+        // اطمینان از اینکه هدف داخل چارچوب دروازه است
+        const finalAimY = clamp(targetY, goalTop + 12, goalBottom - 12);
+        aimTarget = { x: enemyGoal.x, y: finalAimY };
+    }
+    // --- ⭐ پایان تغییرات جدید ---
+
     const aimVec = normalize({ x: aimTarget.x - predictedPuck.x, y: aimTarget.y - predictedPuck.y });
     
-    // حرکت به پشت پوک برای آماده‌سازی شوت
-    const backoff = p.r + puck.r + (isBankShot ? 15 : 24); // برای شوت زاویه‌دار کمی نزدیک‌تر شو
+    const backoff = p.r + puck.r + (isBankShot ? 15 : 24);
     const approach = { x: predictedPuck.x - aimVec.x * backoff, y: predictedPuck.y - aimVec.y * backoff };
     approach.x = clamp(approach.x, left + p.r, left + width / 2 - p.r);
     approach.y = clamp(approach.y, top + p.r, bottom - p.r);
@@ -274,7 +278,6 @@ function aiControl(dt) {
     if (distance(p, approach) > arriveThreshold) {
         moveTowards(p, approach, maxAISpeed, dt, 1.2);
     } else {
-        // حرکت سریع برای ضربه زدن
         const dashTarget = { x: predictedPuck.x - aimVec.x * (p.r + 6), y: predictedPuck.y - aimVec.y * (p.r + 6) };
         moveTowards(p, dashTarget, maxAISpeed * 1.15, dt, 1.6);
 
@@ -283,8 +286,7 @@ function aiControl(dt) {
         const inRange = distance(p, puck) <= p.r + puck.r + shoot.distance + 6;
 
         if (inRange && align > (isBankShot ? 0.45 : 0.55) && shoot.aiCooldown <= 0) {
-            // برای شوت زاویه‌دار به دقت کمتری نیاز است
-            attemptShoot(p, { who: 'AI', targetVec: aimVec, power: shoot.powerAI * (isBankShot ? 1.1 : 1.0) }); // قدرت بیشتر برای شوت زاویه‌دار
+            attemptShoot(p, { who: 'AI', targetVec: aimVec, power: shoot.powerAI * (isBankShot ? 1.1 : 1.0) });
         }
     }
     clampToAIHalf();
@@ -546,7 +548,7 @@ function drawPuck() {
     const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
     const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
     ctx.beginPath();
-    ctx.ellipse(puck.x + shadowOffsetX, p.y + shadowOffsetY, puck.r * 1.2, puck.r * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r * 1.2, puck.r * 0.5, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.26)';
     ctx.fill();
 
