@@ -27,7 +27,19 @@ function attemptShoot(p, opts = {}) {
     if (d > p.r + puck.r + shoot.distance) return;
 
     let dir = opts.targetVec ? normalize(opts.targetVec) : normalize({ x: puck.x - p.x, y: puck.y - p.y });
-    const power = opts.power || (who === 'AI' ? shoot.powerAI : shoot.powerHuman);
+    
+    // --- NEW: Variable Power Calculation ---
+    let power;
+    if (who === 'AI') {
+        power = shoot.powerAI;
+    } else {
+        // Calculate the current speed of the paddle
+        const paddleSpeed = Math.hypot(p.vx, p.vy);
+        // Calculate dynamic power based on paddle speed
+        power = shoot.basePowerHuman + (paddleSpeed * shoot.velocityPowerMultiplier);
+    }
+    // --- End of new logic ---
+
 
     const blend = 0.18;
     puck.vx = puck.vx * blend + dir.x * power * (1 - blend);
@@ -44,7 +56,9 @@ function attemptShoot(p, opts = {}) {
     puck.angularVelocity += (p.vx * dir.y - p.vy * dir.x) * 0.002 + (Math.random() * 0.4 - 0.2);
     playShoot();
     shakeTimer = 0.22;
-    shakeIntensity = 9;
+    // شدت لرزش را بر اساس قدرت ضربه تنظیم می‌کنیم تا طبیعی‌تر باشد
+    shakeIntensity = 3 + (power / shoot.powerAI) * 6;
+
 
     if (who === 'A') shoot.cooldownA = shoot.cooldownHuman;
     if (who === 'B') shoot.cooldownB = shoot.cooldownHuman;
@@ -532,7 +546,7 @@ function drawPuck() {
     const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
     const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
     ctx.beginPath();
-    ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r * 1.2, puck.r * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(puck.x + shadowOffsetX, p.y + shadowOffsetY, puck.r * 1.2, puck.r * 0.5, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.26)';
     ctx.fill();
 
