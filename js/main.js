@@ -20,7 +20,7 @@ function startMatch(minutes, mode) {
     startCrowd();
     state.matchTime = Math.max(10, Math.floor(minutes * 60));
     state.timeLeft = state.matchTime;
-    state.running = true;
+    state.running = false; // Game is not running during countdown
     state.scoreA = 0;
     state.scoreB = 0;
     scoreAEl.textContent = 0;
@@ -30,15 +30,33 @@ function startMatch(minutes, mode) {
     messageOverlay.classList.remove('show');
     if (window.matchInterval) clearInterval(window.matchInterval);
 
-    window.matchInterval = setInterval(() => {
-        if (state.running && !state.goldenGoal) {
-            state.timeLeft -= 1;
-            timerEl.textContent = formatTime(state.timeLeft);
-            if (state.timeLeft <= 0) {
-                handleTimeUp();
-            }
+    let countdownValue = 3;
+
+    function doCountdown() {
+        if (countdownValue > 0) {
+            showMessage(countdownValue, 'white');
+            playClick(440, 0.1, 0.2); // Countdown tick sound
+            countdownValue--;
+            setTimeout(doCountdown, 2000);
+        } else {
+            showMessage('شروع!', '#ffd166');
+            playWhistle();
+            state.running = true; // Start the game
+
+            // Start the main match timer interval
+            window.matchInterval = setInterval(() => {
+                if (state.running && !state.goldenGoal) {
+                    state.timeLeft -= 1;
+                    timerEl.textContent = formatTime(state.timeLeft);
+                    if (state.timeLeft <= 0) {
+                        handleTimeUp();
+                    }
+                }
+            }, 2000);
         }
-    }, 1000);
+    }
+
+    doCountdown();
 }
 
 function handleTimeUp() {
@@ -106,6 +124,9 @@ canvas.addEventListener('touchstart', e => {
 
 canvas.addEventListener('touchmove', e => {
     e.preventDefault();
+    // Prevent paddle movement during countdown
+    if (!state.running) return;
+
     const rect = canvas.getBoundingClientRect();
     for (const t of e.changedTouches) {
         const pos = { x: t.clientX - rect.left, y: t.clientY - rect.top };
