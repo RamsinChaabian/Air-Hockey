@@ -139,6 +139,60 @@ function moveTowards(p, target, maxSpeed, dt, accelFactor = 1) {
 }
 
 /**
+ * یک هدف مناسب برای شوت زاویه‌دار (برخورد با دیواره) محاسبه می‌کند.
+ * @returns {object|null} مختصات هدف روی دیواره یا null اگر شوت مناسبی پیدا نشود.
+ */
+function calculateBankShotTarget() {
+    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+    const p = paddleA;
+    const enemyGoal = { x: right - 10, y: (top + bottom) / 2 };
+
+    // بررسی اینکه آیا مسیر مستقیم توسط حریف مسدود شده است یا نه
+    const directPathBlocked = Math.abs(puck.y - paddleB.y) < paddleB.r && puck.x < paddleB.x;
+
+    if (!directPathBlocked) {
+        return null; // اگر مسیر مستقیم باز است، نیازی به شوت زاویه‌دار نیست
+    }
+
+    // امتحان کردن شوت از دیواره بالا و پایین
+    const walls = [{ y: top, name: 'top' }, { y: bottom, name: 'bottom' }];
+    let bestTarget = null;
+    let bestTargetScore = -Infinity;
+
+    for (const wall of walls) {
+        // "آینه کردن" دروازه حریف در آن سوی دیواره
+        const reflectedGoalY = wall.y + (wall.y - enemyGoal.y);
+        const reflectedGoal = { x: enemyGoal.x, y: reflectedGoalY };
+
+        // محاسبه بردار از پوک به سمت دروازه آینه‌ای
+        const dirToReflectedGoal = normalize({ x: reflectedGoal.x - puck.x, y: reflectedGoal.y - puck.y });
+
+        // پیدا کردن نقطه برخورد با دیواره
+        const t = (wall.y - puck.y) / dirToReflectedGoal.y;
+        if (t > 0) {
+            const collisionPoint = {
+                x: puck.x + dirToReflectedGoal.x * t,
+                y: wall.y
+            };
+
+            // اطمینان از اینکه نقطه برخورد داخل محدوده میز است
+            if (collisionPoint.x > left && collisionPoint.x < right) {
+                // یک امتیازدهی ساده برای انتخاب بهترین شوت
+                // شوتی بهتر است که زاویه تندتری داشته باشد (برای غافلگیری)
+                const score = Math.abs(dirToReflectedGoal.x); 
+                if (score > bestTargetScore) {
+                    bestTargetScore = score;
+                    bestTarget = collisionPoint;
+                }
+            }
+        }
+    }
+    
+    return bestTarget;
+}
+
+
+/**
  * AI logic for controlling paddle A in single-player mode.
  * @param {number} dt - Delta time.
  */
@@ -154,7 +208,7 @@ function aiControl(dt) {
     const goalTop = (top + bottom) / 2 - goalHeight / 2;
     const goalBottom = (top + bottom) / 2 + goalHeight / 2;
     const enemyGoal = { x: right - 10, y: (top + bottom) / 2 };
-    const isPuckInAIHalf = puck.x < left + width * 0.5;
+    const isPuckInAIHalf = puck.x < left + width * 0.55; // کمی محدوده را افزایش می‌دهیم
 
     const clampToAIHalf = () => {
         p.x = Math.max(left + p.r, Math.min(left + width / 2 - p.r, p.x));
@@ -167,33 +221,61 @@ function aiControl(dt) {
 
     shoot.aiCooldown = Math.max(0, shoot.aiCooldown - dt);
 
+    // --- پیاده‌سازی پیشنهاد ۲: پیش‌بینی حرکت پوک ---
+    // مکان پوک را در 0.15 ثانیه آینده تخمین می‌زنیم
+    const predictionTime = 0.15;
+    const predictedPuck = {
+        x: puck.x + puck.vx * predictionTime,
+        y: puck.y + puck.vy * predictionTime
+    };
+
+
     if (!isPuckInAIHalf) {
-        const target = { x: DEF_X, y: clamp(puck.y, top + p.r, bottom - p.r) };
+        // بازگشت به موقعیت دفاعی بر اساس مکان *پیش‌بینی‌شده* پوک
+        const target = { x: DEF_X, y: clamp(predictedPuck.y, top + p.r, bottom - p.r) };
         moveTowards(p, target, maxAISpeed, dt);
         clampToAIHalf();
         return;
     }
 
-    const aimY = clamp(enemyGoal.y + (Math.random() * 40 - 20), goalTop + 12, goalBottom - 12);
-    const aimVec = normalize({ x: enemyGoal.x - puck.x, y: aimY - puck.y });
+    // --- پیاده‌سازی پیشنهاد ۳: شوت‌های زاویه‌دار ---
+    let aimTarget = null;
+    let isBankShot = false;
 
-    const backoff = p.r + puck.r + 24;
-    const approach = { x: puck.x - aimVec.x * backoff, y: puck.y - aimVec.y * backoff };
+    // ابتدا تلاش برای شوت زاویه‌دار
+    const bankShotTarget = calculateBankShotTarget();
+    if (bankShotTarget) {
+        aimTarget = bankShotTarget;
+        isBankShot = true;
+    } else {
+        // اگر شوت زاویه‌دار ممکن نبود، یک شوت مستقیم را هدف‌گیری کن
+        const aimY = clamp(enemyGoal.y + (Math.random() * 40 - 20), goalTop + 12, goalBottom - 12);
+        aimTarget = { x: enemyGoal.x, y: aimY };
+    }
+
+    // بردار هدف‌گیری بر اساس هدف انتخابی (مستقیم یا زاویه‌دار) و مکان *پیش‌بینی‌شده* پوک
+    const aimVec = normalize({ x: aimTarget.x - predictedPuck.x, y: aimTarget.y - predictedPuck.y });
+    
+    // حرکت به پشت پوک برای آماده‌سازی شوت
+    const backoff = p.r + puck.r + (isBankShot ? 15 : 24); // برای شوت زاویه‌دار کمی نزدیک‌تر شو
+    const approach = { x: predictedPuck.x - aimVec.x * backoff, y: predictedPuck.y - aimVec.y * backoff };
     approach.x = clamp(approach.x, left + p.r, left + width / 2 - p.r);
     approach.y = clamp(approach.y, top + p.r, bottom - p.r);
 
     if (distance(p, approach) > arriveThreshold) {
         moveTowards(p, approach, maxAISpeed, dt, 1.2);
     } else {
-        const dashTarget = { x: puck.x - aimVec.x * (p.r + 6), y: puck.y - aimVec.y * (p.r + 6) };
+        // حرکت سریع برای ضربه زدن
+        const dashTarget = { x: predictedPuck.x - aimVec.x * (p.r + 6), y: predictedPuck.y - aimVec.y * (p.r + 6) };
         moveTowards(p, dashTarget, maxAISpeed * 1.15, dt, 1.6);
 
         const toPuck = normalize({ x: puck.x - p.x, y: puck.y - p.y });
         const align = dot(toPuck, aimVec);
         const inRange = distance(p, puck) <= p.r + puck.r + shoot.distance + 6;
 
-        if (inRange && align > 0.55 && shoot.aiCooldown <= 0) {
-            attemptShoot(p, { who: 'AI', targetVec: aimVec, power: shoot.powerAI });
+        if (inRange && align > (isBankShot ? 0.45 : 0.55) && shoot.aiCooldown <= 0) {
+            // برای شوت زاویه‌دار به دقت کمتری نیاز است
+            attemptShoot(p, { who: 'AI', targetVec: aimVec, power: shoot.powerAI * (isBankShot ? 1.1 : 1.0) }); // قدرت بیشتر برای شوت زاویه‌دار
         }
     }
     clampToAIHalf();
