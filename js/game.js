@@ -93,43 +93,52 @@ function handleGamepadInput(dt) {
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!gamepads.length) return;
 
-    // Right player (Player B)
-    const gp2 = gamepads[1] || gamepads[0];
-    if (gp2) {
-        let dx = gp2.axes[0];
-        let dy = gp2.axes[1];
+    // A helper function to process input for a given paddle and gamepad
+    const processGamepad = (paddle, gamepad) => {
+        if (!gamepad) return;
+
+        // Determine the current acceleration, applying turbo if active
+        let accel = paddle.acceleration;
+        if (paddle.isTurboActive) {
+            accel *= turbo.accelerationMultiplier;
+        }
+
+        // Read joystick axes for movement
+        let dx = gamepad.axes[0];
+        let dy = gamepad.axes[1];
         if (Math.abs(dx) < 0.1) dx = 0;
         if (Math.abs(dy) < 0.1) dy = 0;
-        paddleB.vx += dx * paddleB.acceleration * dt;
-        paddleB.vy += dy * paddleB.acceleration * dt;
 
-        const wasPressed = prevPad[gp2.index]?.buttons?.[0] || false;
-        const isPressed = !!gp2.buttons?.[0]?.pressed;
+        // Apply acceleration to paddle's velocity
+        paddle.vx += dx * accel * dt;
+        paddle.vy += dy * accel * dt;
+
+        // Handle shooting input
+        const wasPressed = prevPad[gamepad.index]?.buttons?.[0] || false;
+        const isPressed = !!gamepad.buttons?.[0]?.pressed;
         if (isPressed && !wasPressed) {
-            attemptShoot(paddleB, { who: 'B' });
+            // Determine who is shooting for the attemptShoot function
+            const who = (paddle === paddleA) ? 'A' : 'B';
+            attemptShoot(paddle, { who: who });
         }
-        prevPad[gp2.index] = prevPad[gp2.index] || { buttons: [] };
-        prevPad[gp2.index].buttons[0] = isPressed;
-    }
+        
+        // Store current button state for the next frame
+        prevPad[gamepad.index] = prevPad[gamepad.index] || { buttons: [] };
+        prevPad[gamepad.index].buttons[0] = isPressed;
+    };
 
-    // Left player (Player A) in two-player mode
+    // --- Right player (Player B) ---
+    // Uses the second gamepad if available, otherwise falls back to the first one.
+    const gp2 = gamepads[1] || gamepads[0];
+    processGamepad(paddleB, gp2);
+
+
+    // --- Left player (Player A) in two-player mode ---
     if (state.gameMode === 'twoPlayer') {
         const gp1 = gamepads[0];
-        if (gp1) {
-            let dx = gp1.axes[0];
-            let dy = gp1.axes[1];
-            if (Math.abs(dx) < 0.1) dx = 0;
-            if (Math.abs(dy) < 0.1) dy = 0;
-            paddleA.vx += dx * paddleA.acceleration * dt;
-            paddleA.vy += dy * paddleA.acceleration * dt;
-
-            const wasPressed = prevPad[gp1.index]?.buttons?.[0] || false;
-            const isPressed = !!gp1.buttons?.[0]?.pressed;
-            if (isPressed && !wasPressed) {
-                attemptShoot(paddleA, { who: 'A' });
-            }
-            prevPad[gp1.index] = prevPad[gp1.index] || { buttons: [] };
-            prevPad[gp1.index].buttons[0] = isPressed;
+        // Ensure we are not using the same gamepad for both players
+        if (gp1 && (!gp2 || gp1.index !== gp2.index)) {
+            processGamepad(paddleA, gp1);
         }
     }
 }
