@@ -51,8 +51,8 @@ const shoot = {
 
 // --- NEW: Turbo Mechanics ---
 const turbo = {
-    accelerationMultiplier: 1.8,
-    maxSpeedMultiplier: 1.5,
+    accelerationMultiplier: 2.8,
+    maxSpeedMultiplier: 2.5,
     powerMultiplier: 2.2
 };
 
