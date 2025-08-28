@@ -4,8 +4,8 @@
 function resetObjects() {
     const { left, right, top, bottom, width } = tableCoords(canvas.width, canvas.height);
     puck = { x: (left + right) / 2, y: (top + bottom) / 2, r: Math.max(12, Math.min(28, width * 0.02)), vx: 0, vy: 0, mass: 1, maxSpeed: 1500, rotation: 0, angularVelocity: 0 };
-    paddleA = { x: left + width * 0.15, y: (top + bottom) / 2, r: Math.max(22, Math.min(44, width * 0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx: 0, vy: 0, hitAnimation: 0 };
-    paddleB = { x: right - width * 0.15, y: (top + bottom) / 2, r: Math.max(22, Math.min(44, width * 0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx: 0, vy: 0, hitAnimation: 0 };
+    paddleA = { x: left + width * 0.15, y: (top + bottom) / 2, r: Math.max(22, Math.min(44, width * 0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx: 0, vy: 0, hitAnimation: 0, isTurboActive: false };
+    paddleB = { x: right - width * 0.15, y: (top + bottom) / 2, r: Math.max(22, Math.min(44, width * 0.03)), mass: 5, maxSpeed: 900, acceleration: 3500, vx: 0, vy: 0, hitAnimation: 0, isTurboActive: false };
     lastTouch = null;
 }
 
@@ -28,7 +28,7 @@ function attemptShoot(p, opts = {}) {
 
     let dir = opts.targetVec ? normalize(opts.targetVec) : normalize({ x: puck.x - p.x, y: puck.y - p.y });
     
-    // --- NEW: Variable Power Calculation ---
+    // --- MODIFIED: Variable Power Calculation ---
     let power;
     if (who === 'AI') {
         power = shoot.powerAI;
@@ -37,6 +37,11 @@ function attemptShoot(p, opts = {}) {
         const paddleSpeed = Math.hypot(p.vx, p.vy);
         // Calculate dynamic power based on paddle speed
         power = shoot.basePowerHuman + (paddleSpeed * shoot.velocityPowerMultiplier);
+        
+        // --- NEW: Apply Turbo Power Multiplier ---
+        if (p.isTurboActive) {
+            power *= turbo.powerMultiplier;
+        }
     }
     // --- End of new logic ---
 
@@ -45,7 +50,7 @@ function attemptShoot(p, opts = {}) {
     puck.vx = puck.vx * blend + dir.x * power * (1 - blend);
     puck.vy = puck.vy * blend + dir.y * power * (1 - blend);
 
-    const sp = Math.hypot(puck.vx, puck.vy);
+    const sp = Math.hypot(puck.vx, p.vy);
     const maxSp = puck.maxSpeed * 1.1;
     if (sp > maxSp) {
         const k = maxSp / sp;
@@ -349,6 +354,7 @@ function stepPhysics(dt) {
         return;
     }
 
+    // --- MODIFIED: `move` function for Turbo logic ---
     const move = (p, upKey, downKey, leftKey, rightKey) => {
         const minX = p === paddleA ? left + 8 : left + width / 2 + 8;
         const maxX = p === paddleA ? left + width / 2 - 8 : right - 8;
@@ -356,21 +362,30 @@ function stepPhysics(dt) {
         if ((state.penaltyFor === 'A' && p === paddleA) || (state.penaltyFor === 'B' && p === paddleB)) {
              p.vx *= 0.9; p.vy *= 0.9;
         } else {
+            let accel = p.acceleration;
+            let maxSp = p.maxSpeed;
+
+            // --- NEW: Apply Turbo ---
+            if (p.isTurboActive) {
+                accel *= turbo.accelerationMultiplier;
+                maxSp *= turbo.maxSpeedMultiplier;
+            }
+
             let inputX = 0, inputY = 0;
             if (keys[upKey]) inputY -= 1; if (keys[downKey]) inputY += 1;
             if (keys[leftKey]) inputX -= 1; if (keys[rightKey]) inputX += 1;
 
             if (inputX !== 0 || inputY !== 0) {
                 const len = Math.hypot(inputX, inputY);
-                p.vx += (inputX / len) * p.acceleration * dt;
-                p.vy += (inputY / len) * p.acceleration * dt;
+                p.vx += (inputX / len) * accel * dt;
+                p.vy += (inputY / len) * accel * dt;
             } else {
                 p.vx *= 0.94; p.vy *= 0.94;
             }
 
             const currentSpeed = Math.hypot(p.vx, p.vy);
-            if (currentSpeed > p.maxSpeed) {
-                const k = p.maxSpeed / currentSpeed;
+            if (currentSpeed > maxSp) {
+                const k = maxSp / currentSpeed;
                 p.vx *= k; p.vy *= k;
             }
         }
@@ -380,6 +395,7 @@ function stepPhysics(dt) {
         p.x = clamp(p.x, minX + p.r, maxX - p.r);
         p.y = clamp(p.y, top + p.r, bottom - p.r);
     };
+    // --- End of modification ---
 
     if (state.gameMode === 'twoPlayer') {
         move(paddleA, 'w', 's', 'a', 'd');
@@ -510,6 +526,19 @@ function drawPaddle(p, c, inner, dt) {
     } else {
         p.hitAnimation = 0;
     }
+
+    // --- NEW: Turbo Glow Effect ---
+    if (p.isTurboActive) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius * 1.5, 0, Math.PI * 2);
+        const turboGlow = ctx.createRadialGradient(p.x, p.y, radius, p.x, p.y, radius * 1.5);
+        turboGlow.addColorStop(0, `${c}88`); // Inner glow
+        turboGlow.addColorStop(1, `${c}00`); // Outer transparent
+        ctx.fillStyle = turboGlow;
+        ctx.fill();
+    }
+    // --- End of new effect ---
+
     const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
     const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
     ctx.beginPath();
