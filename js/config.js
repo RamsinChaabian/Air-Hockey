@@ -49,6 +49,13 @@ const shoot = {
     cooldownAI: 0.65
 };
 
+// --- NEW: Turbo Mechanics ---
+const turbo = {
+    accelerationMultiplier: 1.8,
+    maxSpeedMultiplier: 1.5,
+    powerMultiplier: 2.2
+};
+
 
 // --- Effects ---
 let flashTimer = 0;
