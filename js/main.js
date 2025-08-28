@@ -37,7 +37,7 @@ function startMatch(minutes, mode) {
             showMessage(countdownValue, 'white');
             playClick(440, 0.1, 0.2); // Countdown tick sound
             countdownValue--;
-            setTimeout(doCountdown, 2000);
+            setTimeout(doCountdown, 1000);
         } else {
             showMessage('شروع!', '#ffd166');
             playWhistle();
@@ -52,7 +52,7 @@ function startMatch(minutes, mode) {
                         handleTimeUp();
                     }
                 }
-            }, 2000);
+            }, 1000);
         }
     }
 
@@ -110,13 +110,38 @@ window.addEventListener('resize', resize);
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
 startTwoPlayerBtn.addEventListener('click', () => startGame('twoPlayer'));
+
+// --- MODIFIED: Keyboard Listeners for Turbo ---
 window.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
+    
+    // Turbo for Player B (Right Player)
+    if (e.code === 'ShiftRight' && paddleB) {
+        paddleB.isTurboActive = true;
+    }
+    // Turbo for Player A (Left Player) in two-player mode
+    if (state.gameMode === 'twoPlayer' && e.code === 'ShiftLeft' && paddleA) {
+        paddleA.isTurboActive = true;
+    }
+
     handleShootKeydown(e);
 });
+
 window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
+
+    // Deactivate Turbo for Player B
+    if (e.code === 'ShiftRight' && paddleB) {
+        paddleB.isTurboActive = false;
+    }
+    // Deactivate Turbo for Player A
+    if (e.code === 'ShiftLeft' && paddleA) {
+        paddleA.isTurboActive = false;
+    }
 });
+// --- End of modification ---
+
+
 canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     for (const t of e.changedTouches) activeTouch[t.identifier] = { id: t.identifier };
