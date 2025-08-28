@@ -127,17 +127,17 @@ window.addEventListener('keydown', e => {
     handleShootKeydown(e);
 });
 
+// --- MODIFIED: Keyboard Listeners for Turbo ---
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    keys[e.code] = true; // Also store by code for keys like Shift
+
+    handleShootKeydown(e);
+});
+
 window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
-
-    // Deactivate Turbo for Player B
-    if (e.code === 'ShiftRight' && paddleB) {
-        paddleB.isTurboActive = false;
-    }
-    // Deactivate Turbo for Player A
-    if (e.code === 'ShiftLeft' && paddleA) {
-        paddleA.isTurboActive = false;
-    }
+    keys[e.code] = false; // Also store by code
 });
 // --- End of modification ---
 
