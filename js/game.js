@@ -343,6 +343,31 @@ function triggerPenalty(player) {
 function stepPhysics(dt) {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
 
+    // --- NEW: Consolidated Turbo Logic ---
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gpB = gamepads[1] || gamepads[0]; // Player B (right) uses Pad 2, or Pad 1 if it's the only one.
+    const gpA = state.gameMode === 'twoPlayer' && gamepads[0] ? gamepads[0] : null; // Player A (left) uses Pad 1.
+
+    if (paddleB) {
+        const isGamepadTurbo = gpB ? !!gpB.buttons?.[5]?.pressed : false;
+        const isKeyboardTurbo = !!keys['ShiftRight'];
+        paddleB.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
+    }
+
+    if (paddleA) {
+        // In two player mode, ensure we aren't trying to use the same gamepad for both players
+        const canUseGamepadA = gpA && (!gpB || gpA.index !== gpB.index);
+        
+        if (state.gameMode === 'twoPlayer') {
+            const isGamepadTurbo = canUseGamepadA ? !!gpA.buttons?.[5]?.pressed : false;
+            const isKeyboardTurbo = !!keys['ShiftLeft'];
+            paddleA.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
+        } else {
+            paddleA.isTurboActive = false; // AI doesn't use turbo
+        }
+    }
+    // --- End of new logic ---
+
     const cornerDist = puck.r + 20;
     if (
         distance(puck, { x: left, y: top }) < cornerDist ||
