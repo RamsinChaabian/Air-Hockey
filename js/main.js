@@ -6,6 +6,7 @@ function startGame(mode) {
     modal.style.display = 'none';
     resize();
     resetObjects();
+    tryFullscreen(); // درخواست تمام صفحه شدن
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch (e) { console.error("Could not resume audio context:", e); }
@@ -106,7 +107,11 @@ function loop(now) {
 }
 
 // --- Event Listeners ---
-window.addEventListener('resize', resize);
+// --- MODIFIED: Event listener for resize to reset object positions ---
+window.addEventListener('resize', () => {
+    resize();
+    resetObjects(); 
+});
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
 startTwoPlayerBtn.addEventListener('click', () => startGame('twoPlayer'));
