@@ -18,6 +18,19 @@ function showMessage(content, color, isLottie = false) {
     setTimeout(() => messageOverlay.classList.remove('show'), 1200);
 }
 
+function showPauseMenu() {
+    modal.style.display = 'flex';
+    modal.querySelector('.panel').innerHTML = `
+        <h2 style="text-align:center; font-size: 24px;">بازی متوقف شد</h2>
+        <div style="margin-top:20px; text-align:center;">
+          <button id="resumeBtn" class="btn">ادامه بازی</button>
+          <button id="mainMenuBtn" class="btn ghost">منوی اصلی</button>
+        </div>
+      `;
+    document.getElementById('resumeBtn').addEventListener('click', togglePause);
+    document.getElementById('mainMenuBtn').addEventListener('click', () => location.reload());
+}
+
 function endMatch() {
     state.running = false;
     stopCrowd();
