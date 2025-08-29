@@ -464,33 +464,42 @@ function stepPhysics(dt) {
     }
 
     const collideP = (p) => {
-        const dx = puck.x - p.x, dy = puck.y - p.y;
-        const dist = Math.hypot(dx, dy);
-        const minD = puck.r + p.r;
-        if (dist < minD) {
-            p.hitAnimation = 0.2;
-            playClick(1200, 0.05, 0.15);
-            lastTouch = (p === paddleA ? 'A' : 'B');
+    const dx = puck.x - p.x, dy = puck.y - p.y;
+    const dist = Math.hypot(dx, dy);
+    const minD = puck.r + p.r;
+    if (dist < minD) {
+        p.hitAnimation = 0.2;
+        playClick(1200, 0.05, 0.15);
+        lastTouch = (p === paddleA ? 'A' : 'B');
 
-            if (state.penaltyFor && ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA))) {
-                state.penaltyFor = null;
-            }
+        if (state.penaltyFor && ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA))) {
+            state.penaltyFor = null;
+        }
 
-            const nx = dx / dist, ny = dy / dist;
-            const overlap = minD - dist;
-            puck.x += nx * overlap; puck.y += ny * overlap;
+        const nx = dx / dist, ny = dy / dist;
 
-            const vdx = puck.vx - p.vx, vdy = puck.vy - p.vy;
-            const dotN = vdx * nx + vdy * ny;
-            if (dotN < 0) {
-                const restitution = 1.3;
-                const impulse = -(restitution) * dotN / (1 / puck.mass + 1 / p.mass);
-                puck.vx += impulse * nx / puck.mass;
-                puck.vy += impulse * ny / puck.mass;
-                puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
+        // --- اصلاحیه ۱: توپ را دقیقاً در نقطه برخورد قرار می‌دهیم تا از فرو رفتن جلوگیری شود ---
+        puck.x = p.x + nx * minD;
+        puck.y = p.y + ny * minD;
+
+        const vdx = puck.vx - p.vx, vdy = puck.vy - p.vy;
+        const dotN = vdx * nx + vdy * ny;
+        if (dotN < 0) {
+            const restitution = 1.3;
+            const impulse = -(restitution) * dotN / (1 / puck.mass + 1 / p.mass);
+            puck.vx += impulse * nx / puck.mass;
+            puck.vy += impulse * ny / puck.mass;
+            puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
+
+            const puckSpeed = Math.hypot(puck.vx, puck.vy);
+            if (puckSpeed > puck.maxSpeed) {
+                const k = puck.maxSpeed / puckSpeed;
+                puck.vx *= k;
+                puck.vy *= k;
             }
         }
-    };
+    }
+};
     collideP(paddleA);
     collideP(paddleB);
 
