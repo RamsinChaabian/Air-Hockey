@@ -37,3 +37,61 @@ canvas{display:block;cursor: none;}
   opacity: 1;
   transform: translate(-50%,-50%) scale(1.2);
 }
+
+/* --- استایل‌های جدید منتقل‌شده از HTML --- */
+.instructions-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    color: #cfe8ff;
+}
+.instructions-table th, .instructions-table td {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px;
+    text-align: center;
+}
+.instructions-table th {
+    background-color: rgba(2, 255, 160, 0.1);
+    color: #02ffa0;
+    font-weight: 700;
+}
+.player-yellow {
+    color: yellow;
+    font-weight: bold;
+}
+.player-red {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+.rules-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    text-align: right;
+    font-size: 14px;
+}
+.rules-section h4 {
+    font-size: 16px;
+    color: #02ffa0;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.rules-section p {
+    margin: 5px 0;
+    line-height: 1.6;
+    color: #cfe8ff;
+}
+
+#matchMinutes {
+    font-feature-settings: 'ss01';
+    font-family: 'Vazirmatn';
+    width:100%;
+    padding:8px;
+    margin-top:6px;
+    border-radius:8px;
+}
+
+#fullscreenBtn.ghost {
+    padding: 4px 8px;
+    margin: 0;
+}
