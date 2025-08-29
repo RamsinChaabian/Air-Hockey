@@ -6,7 +6,7 @@ function startGame(mode) {
     modal.style.display = 'none';
     resize();
     resetObjects();
-    tryFullscreen(); // درخواست تمام صفحه شدن
+    tryFullscreen();
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch (e) { console.error("Could not resume audio context:", e); }
@@ -22,6 +22,7 @@ function startMatch(minutes, mode) {
     state.matchTime = Math.max(10, Math.floor(minutes * 60));
     state.timeLeft = state.matchTime;
     state.running = false; // Game is not running during countdown
+    state.paused = false;
     state.scoreA = 0;
     state.scoreB = 0;
     scoreAEl.textContent = 0;
@@ -46,7 +47,7 @@ function startMatch(minutes, mode) {
 
             // Start the main match timer interval
             window.matchInterval = setInterval(() => {
-                if (state.running && !state.goldenGoal) {
+                if (state.running && !state.paused && !state.goldenGoal) {
                     state.timeLeft -= 1;
                     timerEl.textContent = formatTime(state.timeLeft);
                     if (state.timeLeft <= 0) {
@@ -80,7 +81,23 @@ function handleTimeUp() {
     }
 }
 
+function togglePause() {
+    if (!state.running) return;
+    state.paused = !state.paused;
+    if (state.paused) {
+        stopCrowd();
+        showPauseMenu();
+    } else {
+        startCrowd();
+        modal.style.display = 'none';
+        last = performance.now(); // Reset timer to avoid a large dt jump
+        requestAnimationFrame(loop);
+    }
+}
+
 function loop(now) {
+    if (state.paused) return; // Stop the loop if paused
+
     const dt = Math.min(0.03, (now - last) / 1000);
     last = now;
 
@@ -107,7 +124,6 @@ function loop(now) {
 }
 
 // --- Event Listeners ---
-// --- MODIFIED: Event listener for resize to reset object positions ---
 window.addEventListener('resize', () => {
     resize();
     resetObjects(); 
@@ -115,37 +131,22 @@ window.addEventListener('resize', () => {
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
 startTwoPlayerBtn.addEventListener('click', () => startGame('twoPlayer'));
+pauseBtn.addEventListener('click', togglePause);
+resetBtn.addEventListener('click', () => location.reload()); // Simple reset
 
-// --- MODIFIED: Keyboard Listeners for Turbo ---
 window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-    
-    // Turbo for Player B (Right Player)
-    if (e.code === 'ShiftRight' && paddleB) {
-        paddleB.isTurboActive = true;
+    if (e.key === 'Escape' || e.key === 'p') {
+        togglePause();
     }
-    // Turbo for Player A (Left Player) in two-player mode
-    if (state.gameMode === 'twoPlayer' && e.code === 'ShiftLeft' && paddleA) {
-        paddleA.isTurboActive = true;
-    }
-
-    handleShootKeydown(e);
-});
-
-// --- MODIFIED: Keyboard Listeners for Turbo ---
-window.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
-    keys[e.code] = true; // Also store by code for keys like Shift
-
+    keys[e.code] = true;
     handleShootKeydown(e);
 });
 
 window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
-    keys[e.code] = false; // Also store by code
+    keys[e.code] = false;
 });
-// --- End of modification ---
-
 
 canvas.addEventListener('touchstart', e => {
     e.preventDefault();
@@ -154,8 +155,7 @@ canvas.addEventListener('touchstart', e => {
 
 canvas.addEventListener('touchmove', e => {
     e.preventDefault();
-    // Prevent paddle movement during countdown
-    if (!state.running) return;
+    if (!state.running || state.paused) return;
 
     const rect = canvas.getBoundingClientRect();
     for (const t of e.changedTouches) {
