@@ -50,6 +50,10 @@ function startMatch(minutes, mode) {
                 if (state.running && !state.paused && !state.goldenGoal) {
                     state.timeLeft -= 1;
                     timerEl.textContent = formatTime(state.timeLeft);
+					if (state.timeLeft <= 10 && state.timeLeft > 0) {
+                        showMessage(state.timeLeft, '#FFD700'); // Show countdown message
+                        playClick(1200, 0.1, 0.4); // Play a tick sound
+                    }
                     if (state.timeLeft <= 0) {
                         handleTimeUp();
                     }
