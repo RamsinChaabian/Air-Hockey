@@ -14,6 +14,9 @@ canvas{display:block;cursor: none;}
 .fsPrompt{position:fixed;left:50%;top:70%;transform:translate(-50%,-50%);z-index:60;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px}
 @media (max-width:720px){.ui{top:10px}}
 
+.game-controls { display: flex; gap: 10px; }
+.small-btn { padding: 8px 12px; font-size: 18px; line-height: 1; }
+
 /* پیام/ایموجی وسط صفحه */
 #messageOverlay{
   position: fixed;
