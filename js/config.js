@@ -11,10 +11,13 @@ const timerEl = document.getElementById('timer');
 const matchMinutesSelect = document.getElementById('matchMinutes');
 const playerALabel = document.getElementById('playerALabel');
 const messageOverlay = document.getElementById('messageOverlay');
+const pauseBtn = document.getElementById('pauseBtn');
+const resetBtn = document.getElementById('resetBtn');
 
 // --- Game State ---
 const state = {
     running: false,
+    paused: false,
     scoreA: 0,
     scoreB: 0,
     matchTime: 120,
