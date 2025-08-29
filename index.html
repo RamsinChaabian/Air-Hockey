@@ -42,7 +42,7 @@
             <div style="display:flex;gap:12px;align-items:center;margin:12px 0; flex-wrap: wrap; justify-content: center;">
                 <div style="flex:1; min-width: 220px;">
                     <label style="font-size:13px">مدت بازی (دقیقه)</label>
-                    <select id="matchMinutes" style="font-feature-settings: 'ss01';font-family: 'Vazirmatn';width:100%;padding:8px;margin-top:6px;border-radius:8px">
+                    <select id="matchMinutes">
                         <option value="1">۱ دقیقه</option>
                         <option value="2" selected>۲ دقیقه</option>
                         <option value="3">۳ دقیقه</option>
@@ -58,26 +58,52 @@
                     </div>
                 </div>
             </div>
-            <div style="color:#cfe8ff;opacity:0.9;font-size:13px; text-align:center; margin-bottom: 16px;">برای تجربه بهتر، <button id="fullscreenBtn" class="btn ghost" style="padding: 4px 8px; margin: 0;">تمام صفحه</button> کنید.</div>
+            <div style="color:#cfe8ff;opacity:0.9;font-size:13px; text-align:center; margin-bottom: 16px;">برای تجربه بهتر، <button id="fullscreenBtn" class="btn ghost">تمام صفحه</button> کنید.</div>
 
             <div style="padding-top:16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 14px; line-height: 1.7;">
-                <div style="font-weight:700; margin-bottom:10px; font-size:16px; text-align:center;">دستورالعمل‌ها</div>
-                <div style="display:flex; flex-wrap: wrap; gap: 20px; justify-content: center; text-align: right; color:#cfe8ff;">
-                    <div>
-                        <b style="color:yellow;">بازیکن راست (زرد):</b><br />
-                        حرکت: کلیدهای جهت ←↑↓→ یا دسته سمت راست<br />
-                        <b>شوت: ControlRight</b> یا دکمه 1 روی دسته
-                    </div>
-                    <div>
-                        <b style="color:red;">بازیکن چپ (قرمز):</b><br />
-                        حرکت: کلیدهای W A S D (در حالت دونفره) یا دسته سمت چپ<br />
-                        <b>شوت: F</b> یا دکمه 1 روی دسته (فقط در حالت دونفره)
-                    </div>
+                <div style="font-weight:700; margin-bottom:10px; font-size:16px; text-align:center;">آموزش بازی</div>
+                <p style="text-align: right; color: #cfe8ff; font-size: 14px; margin-bottom: 15px;">
+                    دو حالت بازی: شما می‌توانید به‌صورت تک‌نفره در برابر یک هوش مصنوعی پیشرفته بازی کنید یا یک دوست را در حالت دونفره به چالش بکشید.
+                </p>
+                
+                <table class="instructions-table">
+                    <thead>
+                        <tr>
+                            <th>بازیکن</th>
+                            <th>حرکت</th>
+                            <th>شوت</th>
+                            <th>توربو (افزایش سرعت)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="player-yellow">بازیکن راست (زرد)</td>
+                            <td>کلیدهای جهت‌نما یا دسته بازی</td>
+                            <td><b>Control راست</b> یا دکمه دسته</td>
+                            <td><b>Shift راست</b> یا دکمه دسته</td>
+                        </tr>
+                        <tr>
+                            <td class="player-red">بازیکن چپ (قرمز)</td>
+                            <td><b>W A S D</b> (در حالت دونفره) یا دسته بازی</td>
+                            <td><b>F</b> (فقط دونفره) یا دکمه دسته</td>
+                            <td><b>Shift چپ</b> (فقط دونفره) یا دکمه دسته</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="text-align: center; font-size: 13px; color: #cfe8ff; margin-top: 15px;">
+                    <b>توقف بازی:</b> کلید Esc یا P
                 </div>
+
+                <div class="rules-section">
+                    <h4>قوانین بازی</h4>
+                    <p><b>- قانون گل طلایی:</b> اگر بازی در زمان مساوی تمام شود، وارد حالت "گل طلایی" می‌شوید. اولین بازیکنی که گل بزند، برنده مسابقه خواهد بود.</p>
+                    <p><b>- قانون اوت (Penalty):</b> اگر توپ در گوشه‌های میز (مناطق مشخص‌شده با خط‌چین قرمز) گیر کند، بازی متوقف شده و یک پنالتی به نفع حریف اعلام می‌شود.</p>
+                </div>
+
             </div>
             <br>
-            <hr>
-            <div style="text-align:center; padding-top: 16px; font-size: 13px; color: #cfe8ff; opacity: 0.8;">
+            
+            <div style="text-align:center; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 13px; color: #cfe8ff; opacity: 0.8;">
                 طراحی و توسعه توسط <a href="https://www.linkedin.com/in/ramsinchaabian/" target="_blank" rel="noopener noreferrer" style="color: #02ffa0; text-decoration: none; font-weight: bold;">رامسین چعبیان</a>
             </div>
         </div>
