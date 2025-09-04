@@ -6,6 +6,7 @@
     <title>بازی ایر هاکی</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -31,7 +32,11 @@
         <div class="game-controls">
             <button id="pauseBtn" title="توقف بازی" class="btn small-btn">❚❚</button>
             <button id="resetBtn" title="شروع مجدد" class="btn small-btn">↻</button>
+            <button id="saveAiBtn" title="ذخیره هوش مصنوعی" class="btn small-btn">💾</button>
+            <button id="loadAiBtn" title="بارگذاری هوش مصنوعی" class="btn small-btn">📂</button> 
         </div>
+        <input type="file" id="modelUploader" multiple style="display:none" />
+
     </div>
 
     <div id="messageOverlay"></div>
@@ -48,6 +53,7 @@
                         <option value="3">۳ دقیقه</option>
                         <option value="5">۵ دقیقه</option>
                         <option value="10">۱۰ دقیقه</option>
+                         <option value="100">۱۰۰ دقیقه</option>
                     </select>
                 </div>
                 <div style="width:280px;text-align:center">
@@ -109,6 +115,36 @@
         </div>
     </div>
 
+    <div id="loadAiModal" class="modal" style="display: none;">
+        <div class="panel">
+            <h2>بارگذاری هوش مصنوعی</h2>
+            <p style="text-align: center; color: #cfe8ff; font-size: 14px; margin-bottom: 20px;">
+                لطفاً سه فایل ذخیره‌شده هوش مصنوعی را انتخاب کنید.
+            </p>
+            <div class="file-upload-area">
+                <button id="selectJsonBtn" class="btn ghost">انتخاب فایل JSON</button>
+                <span id="jsonStatus" class="file-status">❌</span>
+            </div>
+            <div class="file-upload-area">
+                <button id="selectBinBtn" class="btn ghost">انتخاب فایل BIN</button>
+                <span id="binStatus" class="file-status">❌</span>
+            </div>
+            <div class="file-upload-area">
+                <button id="selectTxtBtn" class="btn ghost">انتخاب فایل TXT</button>
+                <span id="txtStatus" class="file-status">❌</span>
+            </div>
+            <div style="text-align:center; margin-top: 25px;">
+                <button id="confirmLoadBtn" class="btn" disabled>بارگذاری نهایی</button>
+                <button id="cancelLoadBtn" class="btn">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="jsonUploader" accept=".json" style="display:none">
+    <input type="file" id="binUploader" accept=".bin" style="display:none">
+    <input type="file" id="txtUploader" accept=".txt" style="display:none">
+
+    <script src="js/rl_agent.js"></script> 
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/audio.js"></script>

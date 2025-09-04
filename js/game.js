@@ -1,3 +1,5 @@
+// js/game.js
+
 /**
  * Resets the puck and paddles to their initial positions and states.
  */
@@ -11,13 +13,10 @@ function resetObjects() {
 
 /**
  * Attempts to shoot the puck based on paddle position and input.
- * @param {object} p - The paddle object attempting the shot.
- * @param {object} opts - Options for the shot (who, targetVec, power).
  */
 function attemptShoot(p, opts = {}) {
     const who = opts.who || 'B';
-    if ((who === 'A' && state.gameMode !== 'twoPlayer') ||
-        (who === 'A' && shoot.cooldownA > 0) ||
+    if ((who === 'A' && state.gameMode !== 'twoPlayer' && shoot.cooldownA > 0) ||
         (who === 'B' && shoot.cooldownB > 0) ||
         (who === 'AI' && shoot.aiCooldown > 0)) {
         return;
@@ -28,29 +27,22 @@ function attemptShoot(p, opts = {}) {
 
     let dir = opts.targetVec ? normalize(opts.targetVec) : normalize({ x: puck.x - p.x, y: puck.y - p.y });
     
-    // --- MODIFIED: Variable Power Calculation ---
     let power;
     if (who === 'AI') {
         power = shoot.powerAI;
     } else {
-        // Calculate the current speed of the paddle
         const paddleSpeed = Math.hypot(p.vx, p.vy);
-        // Calculate dynamic power based on paddle speed
         power = shoot.basePowerHuman + (paddleSpeed * shoot.velocityPowerMultiplier);
-        
-        // --- NEW: Apply Turbo Power Multiplier ---
         if (p.isTurboActive) {
             power *= turbo.powerMultiplier;
         }
     }
-    // --- End of new logic ---
-
 
     const blend = 0.18;
     puck.vx = puck.vx * blend + dir.x * power * (1 - blend);
     puck.vy = puck.vy * blend + dir.y * power * (1 - blend);
 
-    const sp = Math.hypot(puck.vx, p.vy);
+    const sp = Math.hypot(puck.vx, puck.vy);
     const maxSp = puck.maxSpeed * 1.1;
     if (sp > maxSp) {
         const k = maxSp / sp;
@@ -61,19 +53,15 @@ function attemptShoot(p, opts = {}) {
     puck.angularVelocity += (p.vx * dir.y - p.vy * dir.x) * 0.002 + (Math.random() * 0.4 - 0.2);
     playShoot();
     shakeTimer = 0.22;
-    // شدت لرزش را بر اساس قدرت ضربه تنظیم می‌کنیم تا طبیعی‌تر باشد
     shakeIntensity = 3 + (power / shoot.powerAI) * 6;
-
 
     if (who === 'A') shoot.cooldownA = shoot.cooldownHuman;
     if (who === 'B') shoot.cooldownB = shoot.cooldownHuman;
     if (who === 'AI') shoot.aiCooldown = shoot.cooldownAI;
 }
 
-
 /**
  * Handles keyboard input for shooting.
- * @param {KeyboardEvent} e - The keyboard event.
  */
 function handleShootKeydown(e) {
     if (!state.running) return;
@@ -87,240 +75,101 @@ function handleShootKeydown(e) {
 
 /**
  * Handles gamepad input for paddle movement and shooting.
- * @param {number} dt - Delta time.
  */
 function handleGamepadInput(dt) {
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!gamepads.length) return;
 
-    // A helper function to process input for a given paddle and gamepad
     const processGamepad = (paddle, gamepad) => {
         if (!gamepad) return;
-
-        // Determine the current acceleration, applying turbo if active
         let accel = paddle.acceleration;
         if (paddle.isTurboActive) {
             accel *= turbo.accelerationMultiplier;
         }
-
-        // Read joystick axes for movement
         let dx = gamepad.axes[0];
         let dy = gamepad.axes[1];
         if (Math.abs(dx) < 0.1) dx = 0;
         if (Math.abs(dy) < 0.1) dy = 0;
 
-        // Apply acceleration to paddle's velocity
         paddle.vx += dx * accel * dt;
         paddle.vy += dy * accel * dt;
 
-        // Handle shooting input
         const wasPressed = prevPad[gamepad.index]?.buttons?.[0] || false;
         const isPressed = !!gamepad.buttons?.[0]?.pressed;
         if (isPressed && !wasPressed) {
-            // Determine who is shooting for the attemptShoot function
             const who = (paddle === paddleA) ? 'A' : 'B';
             attemptShoot(paddle, { who: who });
         }
         
-        // Store current button state for the next frame
         prevPad[gamepad.index] = prevPad[gamepad.index] || { buttons: [] };
         prevPad[gamepad.index].buttons[0] = isPressed;
     };
 
-    // --- Right player (Player B) ---
-    // Uses the second gamepad if available, otherwise falls back to the first one.
     const gp2 = gamepads[1] || gamepads[0];
     processGamepad(paddleB, gp2);
 
-
-    // --- Left player (Player A) in two-player mode ---
     if (state.gameMode === 'twoPlayer') {
         const gp1 = gamepads[0];
-        // Ensure we are not using the same gamepad for both players
         if (gp1 && (!gp2 || gp1.index !== gp2.index)) {
             processGamepad(paddleA, gp1);
         }
     }
 }
 
+// =========================================================================
+// == بخش هوش مصنوعی مبتنی بر یادگیری تقویتی (Reinforcement Learning) ==
+// =========================================================================
+
+let lastAction = 0; // برای ذخیره آخرین اقدام انجام‌شده
 
 /**
- * Moves a paddle towards a target position.
- * @param {object} p - The paddle to move.
- * @param {object} target - The target coordinates {x, y}.
- * @param {number} maxSpeed - The maximum speed for the paddle.
- * @param {number} dt - Delta time.
- * @param {number} accelFactor - Acceleration multiplier.
+ * وضعیت فعلی بازی را به صورت یک آرایه عددی نرمال‌شده برمی‌گرداند.
  */
-function moveTowards(p, target, maxSpeed, dt, accelFactor = 1) {
-    const dx = target.x - p.x;
-    const dy = target.y - p.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 1) {
-        p.vx += (dx / dist) * maxSpeed * dt * 8 * (accelFactor || 1);
-        p.vy += (dy / dist) * maxSpeed * dt * 8 * (accelFactor || 1);
-    }
-    p.vx *= 0.9; p.vy *= 0.9;
-    const sp = Math.hypot(p.vx, p.vy);
-    if (sp > maxSpeed) { const k = maxSpeed / sp; p.vx *= k; p.vy *= k; }
-    p.x += p.vx * dt; p.y += p.vy * dt;
+function getGameState() {
+    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+    // نرمال‌سازی مقادیر برای بهبود یادگیری شبکه عصبی
+    return [
+        (puck.x - (left + width / 2)) / (width / 2),
+        (puck.y - (top + height / 2)) / (height / 2),
+        puck.vx / puck.maxSpeed,
+        puck.vy / puck.maxSpeed,
+        (paddleA.x - (left + width / 4)) / (width / 4),
+        (paddleA.y - (top + height / 2)) / (height / 2),
+        (paddleB.x - (right - width / 4)) / (width / 4),
+        (paddleB.y - (top + height / 2)) / (height / 2),
+    ];
 }
 
 /**
- * یک هدف مناسب برای شوت زاویه‌دار (برخورد با دیواره) محاسبه می‌کند.
- * @returns {object|null} مختصات هدف روی دیواره یا null اگر شوت مناسبی پیدا نشود.
+ * کنترل هوش مصنوعی با استفاده از عامل RL.
  */
-function calculateBankShotTarget() {
-    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
-    const p = paddleA;
-    const enemyGoal = { x: right - 10, y: (top + bottom) / 2 };
+function aiControlRL(dt) {
+    const currentState = getGameState();
+    // rlAgent در فایل main.js تعریف شده است و در اینجا از آن استفاده می‌کنیم
+    const actionIndex = rlAgent.chooseAction(currentState);
+    lastAction = actionIndex;
 
-    // بررسی اینکه آیا مسیر مستقیم توسط حریف مسدود شده است یا نه
-    const directPathBlocked = Math.abs(puck.y - paddleB.y) < paddleB.r && puck.x < paddleB.x;
+    const moveAmount = paddleA.acceleration * dt;
 
-    if (!directPathBlocked) {
-        return null; // اگر مسیر مستقیم باز است، نیازی به شوت زاویه‌دار نیست
+    switch (actionIndex) {
+        case 0: paddleA.vy -= moveAmount; break; // بالا
+        case 1: paddleA.vy += moveAmount; break; // پایین
+        case 2: paddleA.vx -= moveAmount; break; // چپ
+        case 3: paddleA.vx += moveAmount; break; // راست
+        case 4: attemptShoot(paddleA, { who: 'AI' }); break; // شوت
+        case 5: /* هیچ کاری نکن */ break;
     }
-
-    // امتحان کردن شوت از دیواره بالا و پایین
-    const walls = [{ y: top, name: 'top' }, { y: bottom, name: 'bottom' }];
-    let bestTarget = null;
-    let bestTargetScore = -Infinity;
-
-    for (const wall of walls) {
-        // "آینه کردن" دروازه حریف در آن سوی دیواره
-        const reflectedGoalY = wall.y + (wall.y - enemyGoal.y);
-        const reflectedGoal = { x: enemyGoal.x, y: reflectedGoalY };
-
-        // محاسبه بردار از پوک به سمت دروازه آینه‌ای
-        const dirToReflectedGoal = normalize({ x: reflectedGoal.x - puck.x, y: reflectedGoal.y - puck.y });
-
-        // پیدا کردن نقطه برخورد با دیواره
-        const t = (wall.y - puck.y) / dirToReflectedGoal.y;
-        if (t > 0) {
-            const collisionPoint = {
-                x: puck.x + dirToReflectedGoal.x * t,
-                y: wall.y
-            };
-
-            // اطمینان از اینکه نقطه برخورد داخل محدوده میز است
-            if (collisionPoint.x > left && collisionPoint.x < right) {
-                // یک امتیازدهی ساده برای انتخاب بهترین شوت
-                // شوتی بهتر است که زاویه تندتری داشته باشد (برای غافلگیری)
-                const score = Math.abs(dirToReflectedGoal.x); 
-                if (score > bestTargetScore) {
-                    bestTargetScore = score;
-                    bestTarget = collisionPoint;
-                }
-            }
-        }
-    }
-    
-    return bestTarget;
-}
-
-/**
- * AI logic for controlling paddle A in single-player mode.
- * @param {number} dt - Delta time.
- */
-function aiControl(dt) {
-    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
-    const p = paddleA;
-    const goalHeight = Math.min(160, height * 0.32);
-    const goalTop = (top + bottom) / 2 - goalHeight / 2;
-    const goalBottom = (top + bottom) / 2 + goalHeight / 2;
-    const enemyGoal = { x: right - 10, y: (top + bottom) / 2 };
-    const isPuckInAIHalf = puck.x < left + width * 0.55;
-
-    const clampToAIHalf = () => {
-        p.x = Math.max(left + p.r, Math.min(left + width / 2 - p.r, p.x));
-        p.y = Math.max(top + p.r, Math.min(bottom - p.r, p.y));
-    };
-
-    const DEF_X = left + width * 0.14;
-    const maxAISpeed = p.maxSpeed * 0.9;
-    const arriveThreshold = 8;
-
-    shoot.aiCooldown = Math.max(0, shoot.aiCooldown - dt);
-
-    const predictionTime = 0.15;
-    const predictedPuck = {
-        x: puck.x + puck.vx * predictionTime,
-        y: puck.y + puck.vy * predictionTime
-    };
-
-    if (!isPuckInAIHalf && state.penaltyFor !== 'B') {
-        const target = { x: DEF_X, y: clamp(predictedPuck.y, top + p.r, bottom - p.r) };
-        moveTowards(p, target, maxAISpeed, dt);
-        clampToAIHalf();
-        return;
-    }
-
-    let aimTarget = null;
-    let isBankShot = false;
-
-    // --- ⭐ شروع تغییرات جدید: هدف‌گیری هوشمند ---
-    const bankShotTarget = calculateBankShotTarget();
-    if (bankShotTarget && state.penaltyFor !== 'B' && Math.random() < 0.4) { // با ۴۰ درصد احتمال، شوت زاویه‌دار را امتحان می‌کند
-        aimTarget = bankShotTarget;
-        isBankShot = true;
-    } else {
-        // تحلیل موقعیت بازیکن حریف
-        const paddleB_Y_Ratio = (paddleB.y - goalTop) / goalHeight;
-
-        let targetY;
-        // اگر بازیکن در نیمه بالایی دروازه است، به نیمه پایینی شوت بزن
-        if (paddleB_Y_Ratio < 0.5) {
-            targetY = enemyGoal.y + (goalHeight / 4) + (Math.random() * (goalHeight / 4));
-        } else { // در غیر این صورت، به نیمه بالایی شوت بزن
-            targetY = enemyGoal.y - (goalHeight / 4) - (Math.random() * (goalHeight / 4));
-        }
-        
-        // اطمینان از اینکه هدف داخل چارچوب دروازه است
-        const finalAimY = clamp(targetY, goalTop + 12, goalBottom - 12);
-        aimTarget = { x: enemyGoal.x, y: finalAimY };
-    }
-    // --- ⭐ پایان تغییرات جدید ---
-
-    const aimVec = normalize({ x: aimTarget.x - predictedPuck.x, y: aimTarget.y - predictedPuck.y });
-    
-    const backoff = p.r + puck.r + (isBankShot ? 15 : 24);
-    const approach = { x: predictedPuck.x - aimVec.x * backoff, y: predictedPuck.y - aimVec.y * backoff };
-    approach.x = clamp(approach.x, left + p.r, left + width / 2 - p.r);
-    approach.y = clamp(approach.y, top + p.r, bottom - p.r);
-
-    if (distance(p, approach) > arriveThreshold) {
-        moveTowards(p, approach, maxAISpeed, dt, 1.2);
-    } else {
-        const dashTarget = { x: predictedPuck.x - aimVec.x * (p.r + 6), y: predictedPuck.y - aimVec.y * (p.r + 6) };
-        moveTowards(p, dashTarget, maxAISpeed * 1.15, dt, 1.6);
-
-        const toPuck = normalize({ x: puck.x - p.x, y: puck.y - p.y });
-        const align = dot(toPuck, aimVec);
-        const inRange = distance(p, puck) <= p.r + puck.r + shoot.distance + 6;
-
-        if (inRange && align > (isBankShot ? 0.45 : 0.55) && shoot.aiCooldown <= 0) {
-            attemptShoot(p, { who: 'AI', targetVec: aimVec, power: shoot.powerAI * (isBankShot ? 1.1 : 1.0) });
-        }
-    }
-    clampToAIHalf();
 }
 
 /**
  * Triggers a penalty, resetting puck and paddles.
- * @param {string} player - The player who committed the foul ('A' or 'B').
  */
 function triggerPenalty(player) {
     if (!state.running) return;
 
-    // Handle cases where lastTouch is null (e.g., puck gets stuck at the very start)
     const { left, right } = tableCoords(canvas.width, canvas.height);
-    let offender = player;
-    if (!offender) {
-        offender = puck.x > (left + right) / 2 ? 'B' : 'A';
-    }
+    let offender = player || (puck.x > (left + right) / 2 ? 'B' : 'A');
 
-    // Only trigger the penalty visuals and sound if we are not already in a penalty state
     if (!state.penaltyFor) {
         showMessage("اوت", "white");
         playWhistle();
@@ -335,27 +184,23 @@ function triggerPenalty(player) {
     if (offender === 'A') {
         puck.x = right - width * 0.25;
         paddleB.x = right - width * 0.15;
-        paddleA.x = left + width * 0.15;
     } else {
         puck.x = left + width * 0.25;
-        paddleA.x = left + width * 0.15;
-        paddleB.x = right - width * 0.15;
     }
+    paddleA.x = left + width * 0.15;
     puck.y = paddleA.y = paddleB.y = penaltySpotY;
     paddleA.vx = paddleA.vy = paddleB.vx = paddleB.vy = 0;
 }
 
 /**
  * Main physics simulation step.
- * @param {number} dt - Delta time.
  */
 function stepPhysics(dt) {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
 
-    // --- NEW: Consolidated Turbo Logic ---
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const gpB = gamepads[1] || gamepads[0]; // Player B (right) uses Pad 2, or Pad 1 if it's the only one.
-    const gpA = state.gameMode === 'twoPlayer' && gamepads[0] ? gamepads[0] : null; // Player A (left) uses Pad 1.
+    const gpB = gamepads[1] || gamepads[0];
+    const gpA = state.gameMode === 'twoPlayer' && gamepads[0] ? gamepads[0] : null;
 
     if (paddleB) {
         const isGamepadTurbo = gpB ? !!gpB.buttons?.[5]?.pressed : false;
@@ -363,32 +208,19 @@ function stepPhysics(dt) {
         paddleB.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
     }
 
-    if (paddleA) {
-        // In two player mode, ensure we aren't trying to use the same gamepad for both players
+    if (paddleA && state.gameMode === 'twoPlayer') {
         const canUseGamepadA = gpA && (!gpB || gpA.index !== gpB.index);
-        
-        if (state.gameMode === 'twoPlayer') {
-            const isGamepadTurbo = canUseGamepadA ? !!gpA.buttons?.[5]?.pressed : false;
-            const isKeyboardTurbo = !!keys['ShiftLeft'];
-            paddleA.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
-        } else {
-            paddleA.isTurboActive = false; // AI doesn't use turbo
-        }
+        const isGamepadTurbo = canUseGamepadA ? !!gpA.buttons?.[5]?.pressed : false;
+        const isKeyboardTurbo = !!keys['ShiftLeft'];
+        paddleA.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
     }
-    // --- End of new logic ---
 
     const cornerDist = puck.r + 20;
-    if (
-        distance(puck, { x: left, y: top }) < cornerDist ||
-        distance(puck, { x: left, y: bottom }) < cornerDist ||
-        distance(puck, { x: right, y: top }) < cornerDist ||
-        distance(puck, { x: right, y: bottom }) < cornerDist
-    ) {
+    if (distance(puck, { x: left, y: top }) < cornerDist || distance(puck, { x: left, y: bottom }) < cornerDist || distance(puck, { x: right, y: top }) < cornerDist || distance(puck, { x: right, y: bottom }) < cornerDist) {
         triggerPenalty(lastTouch);
         return;
     }
 
-    // --- MODIFIED: `move` function for Turbo logic ---
     const move = (p, upKey, downKey, leftKey, rightKey) => {
         const minX = p === paddleA ? left + 8 : left + width / 2 + 8;
         const maxX = p === paddleA ? left + width / 2 - 8 : right - 8;
@@ -399,7 +231,6 @@ function stepPhysics(dt) {
             let accel = p.acceleration;
             let maxSp = p.maxSpeed;
 
-            // --- NEW: Apply Turbo ---
             if (p.isTurboActive) {
                 accel *= turbo.accelerationMultiplier;
                 maxSp *= turbo.maxSpeedMultiplier;
@@ -423,20 +254,30 @@ function stepPhysics(dt) {
                 p.vx *= k; p.vy *= k;
             }
         }
-        
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.x = clamp(p.x, minX + p.r, maxX - p.r);
-        p.y = clamp(p.y, top + p.r, bottom - p.r);
     };
-    // --- End of modification ---
-
+    
+    // اجرای منطق حرکت برای بازیکنان
     if (state.gameMode === 'twoPlayer') {
         move(paddleA, 'w', 's', 'a', 'd');
+        paddleA.x += paddleA.vx * dt;
+        paddleA.y += paddleA.vy * dt;
+        paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
+        paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
     } else {
-        aiControl(dt);
+        aiControlRL(dt);
+        paddleA.x += paddleA.vx * dt;
+        paddleA.y += paddleA.vy * dt;
+        paddleA.vx *= 0.92;
+        paddleA.vy *= 0.92;
+        paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
+        paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
     }
     move(paddleB, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
+    paddleB.x += paddleB.vx * dt;
+    paddleB.y += paddleB.vy * dt;
+    paddleB.x = clamp(paddleB.x, left + width / 2 + paddleB.r, right - paddleB.r);
+    paddleB.y = clamp(paddleB.y, top + paddleB.r, bottom - paddleB.r);
+
 
     puck.x += puck.vx * dt;
     puck.y += puck.vy * dt;
@@ -464,42 +305,40 @@ function stepPhysics(dt) {
     }
 
     const collideP = (p) => {
-    const dx = puck.x - p.x, dy = puck.y - p.y;
-    const dist = Math.hypot(dx, dy);
-    const minD = puck.r + p.r;
-    if (dist < minD) {
-        p.hitAnimation = 0.2;
-        playClick(1200, 0.05, 0.15);
-        lastTouch = (p === paddleA ? 'A' : 'B');
+        const dx = puck.x - p.x, dy = puck.y - p.y;
+        const dist = Math.hypot(dx, dy);
+        const minD = puck.r + p.r;
+        if (dist < minD) {
+            p.hitAnimation = 0.2;
+            playClick(1200, 0.05, 0.15);
+            lastTouch = (p === paddleA ? 'A' : 'B');
 
-        if (state.penaltyFor && ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA))) {
-            state.penaltyFor = null;
-        }
+            if (state.penaltyFor && ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA))) {
+                state.penaltyFor = null;
+            }
 
-        const nx = dx / dist, ny = dy / dist;
+            const nx = dx / dist, ny = dy / dist;
+            puck.x = p.x + nx * minD;
+            puck.y = p.y + ny * minD;
 
-        // --- اصلاحیه ۱: توپ را دقیقاً در نقطه برخورد قرار می‌دهیم تا از فرو رفتن جلوگیری شود ---
-        puck.x = p.x + nx * minD;
-        puck.y = p.y + ny * minD;
+            const vdx = puck.vx - p.vx, vdy = puck.vy - p.vy;
+            const dotN = vdx * nx + vdy * ny;
+            if (dotN < 0) {
+                const restitution = 1.3;
+                const impulse = -(restitution) * dotN / (1 / puck.mass + 1 / p.mass);
+                puck.vx += impulse * nx / puck.mass;
+                puck.vy += impulse * ny / puck.mass;
+                puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
 
-        const vdx = puck.vx - p.vx, vdy = puck.vy - p.vy;
-        const dotN = vdx * nx + vdy * ny;
-        if (dotN < 0) {
-            const restitution = 1.3;
-            const impulse = -(restitution) * dotN / (1 / puck.mass + 1 / p.mass);
-            puck.vx += impulse * nx / puck.mass;
-            puck.vy += impulse * ny / puck.mass;
-            puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
-
-            const puckSpeed = Math.hypot(puck.vx, puck.vy);
-            if (puckSpeed > puck.maxSpeed) {
-                const k = puck.maxSpeed / puckSpeed;
-                puck.vx *= k;
-                puck.vy *= k;
+                const puckSpeed = Math.hypot(puck.vx, puck.vy);
+                if (puckSpeed > puck.maxSpeed) {
+                    const k = puck.maxSpeed / puckSpeed;
+                    puck.vx *= k;
+                    puck.vy *= k;
+                }
             }
         }
-    }
-};
+    };
     collideP(paddleA);
     collideP(paddleB);
 
@@ -510,7 +349,6 @@ function stepPhysics(dt) {
 
 /**
  * Handles scoring a point.
- * @param {string} player - The player who scored ('A' or 'B').
  */
 function scorePoint(player) {
     if (!state.running) return;
@@ -555,10 +393,6 @@ function scorePoint(player) {
 
 /**
  * Draws a paddle on the canvas.
- * @param {object} p - The paddle object.
- * @param {string} c - The main color.
- * @param {string} inner - The inner color.
- * @param {number} dt - Delta time.
  */
 function drawPaddle(p, c, inner, dt) {
     let radius = p.r;
@@ -570,17 +404,15 @@ function drawPaddle(p, c, inner, dt) {
         p.hitAnimation = 0;
     }
 
-    // --- NEW: Turbo Glow Effect ---
     if (p.isTurboActive) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius * 1.5, 0, Math.PI * 2);
         const turboGlow = ctx.createRadialGradient(p.x, p.y, radius, p.x, p.y, radius * 1.5);
-        turboGlow.addColorStop(0, `${c}88`); // Inner glow
-        turboGlow.addColorStop(1, `${c}00`); // Outer transparent
+        turboGlow.addColorStop(0, `${c}88`);
+        turboGlow.addColorStop(1, `${c}00`);
         ctx.fillStyle = turboGlow;
         ctx.fill();
     }
-    // --- End of new effect ---
 
     const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
     const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
@@ -647,7 +479,6 @@ function drawPuck() {
     ctx.stroke();
     ctx.restore();
 }
-
 
 /**
  * Main drawing function for the game.
@@ -717,24 +548,19 @@ function draw(dt) {
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.stroke();
 
-    // Draw penalty zones
     const cornerRadius = (puck?.r || 12) + 20;
     ctx.setLineDash([8, 10]);
     ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
     ctx.lineWidth = 3;
-    // Top-left
     ctx.beginPath();
     ctx.arc(left, top, cornerRadius, 0, Math.PI * 0.5);
     ctx.stroke();
-    // Bottom-left
     ctx.beginPath();
     ctx.arc(left, bottom, cornerRadius, -Math.PI * 0.5, 0);
     ctx.stroke();
-    // Top-right
     ctx.beginPath();
     ctx.arc(right, top, cornerRadius, Math.PI * 0.5, Math.PI);
     ctx.stroke();
-    // Bottom-right
     ctx.beginPath();
     ctx.arc(right, bottom, cornerRadius, Math.PI, Math.PI * 1.5);
     ctx.stroke();
