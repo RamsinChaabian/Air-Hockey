@@ -66,8 +66,3 @@ let flashSide = null;
 let shakeTimer = 0;
 let shakeIntensity = 0;
 
-// // --- AI ---
-// // const rlAgent = new RLAgent();
-// let replayBuffer = []; // برای ذخیره تجربیات
-// const REPLAY_BUFFER_SIZE = 10000;
-// const TRAINING_BATCH_SIZE = 32;

@@ -128,17 +128,32 @@ function togglePause() {
 }
 
 function calculateReward(scored, conceded) {
-    if (scored) return 100;
-    if (conceded) return -100;
-    
-    let reward = 0;
-    const distToPuck = distance(paddleA, puck);
-    reward += (1 - (distToPuck / canvas.width)) * 0.1;
+    // پاداش و جریمه‌های اصلی
+    if (scored) return 100;    // پاداش بزرگ برای گل زدن
+    if (conceded) return -100; // جریمه بزرگ برای گل خوردن
 
+    let reward = 0;
+    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+
+    // پاداش برای نزدیک شدن به توپ (برای تشویق به حمله)
+    const distToPuck = distance(paddleA, puck);
+    reward += (1 - (distToPuck / width)) * 0.5; // پاداش کوچک بر اساس نزدیکی به توپ
+
+    // جریمه برای فاصله گرفتن از دروازه خودی (برای تشویق به دفاع)
+    const goalCenter = { x: left, y: (top + bottom) / 2 };
+    const distToGoal = distance(paddleA, goalCenter);
+    reward -= (distToGoal / (width / 2)) * 0.2; // جریمه کوچک برای دور شدن از دروازه
+
+    // پاداش برای ضربه زدن به توپ
     if (lastTouch === 'A') {
-        reward += 1;
+        reward += 1; // پاداش برای آخرین لمس‌کننده بودن
     }
-    
+
+    // پاداش اضافی اگر توپ در نیمه حریف باشد
+    if (puck.x > left + width / 2) {
+        reward += 0.3;
+    }
+
     return reward;
 }
 
