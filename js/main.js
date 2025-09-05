@@ -135,7 +135,6 @@ function calculateRewardWithDetails(scored, conceded, causedPenalty) {
     const details = {};
     let reward = 0;
 
-    // محاسبات قطعی در ابتدای تابع قرار می‌گیرند
     if (scored) {
         details['گل زده'] = 50;
         return { total: 50, details };
@@ -149,44 +148,49 @@ function calculateRewardWithDetails(scored, conceded, causedPenalty) {
         return { total: -25, details };
     }
 
-    // اگر هیچ اتفاق خاصی نیفتاده باشد، محاسبات عادی فریم انجام می‌شود
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
     const cornerThresholdX = left + width * 0.15;
     const cornerThresholdY = height * 0.2;
 
-    if (paddleA.x < cornerThresholdX || paddleA.y < top + cornerThresholdY || paddleA.y > bottom - cornerThresholdY) {
+    // ** منطق جدید **
+    const isInCorner = paddleA.x < cornerThresholdX || paddleA.y < top + cornerThresholdY || paddleA.y > bottom - cornerThresholdY;
+
+    if (isInCorner) {
         const cornerPenalty = -0.8;
         reward += cornerPenalty;
         details['جريمه گوشه'] = cornerPenalty;
+        // اگر در گوشه باشد، هیچ پاداش دیگری محاسبه نمی‌شود
     } else {
+        // این محاسبات فقط زمانی انجام می‌شود که هوش مصنوعی در گوشه نباشد
         const distFromCenterY = Math.abs(paddleA.y - (top + bottom) / 2);
         const centerReward = (1 - (distFromCenterY / (height / 2))) * 0.4;
         reward += centerReward;
         details['کنترل مرکز'] = centerReward;
-    }
 
-    const distToPuck = distance(paddleA, puck);
-    const proximityReward = (1 - (distToPuck / width)) * 0.2;
-    reward += proximityReward;
-    details['نزدیکی به توپ'] = proximityReward;
+        const distToPuck = distance(paddleA, puck);
+        const proximityReward = (1 - (distToPuck / width)) * 0.2;
+        reward += proximityReward;
+        details['نزدیکی به توپ'] = proximityReward;
 
-    const puckProgress = (puck.x - left) / width;
-    const progressReward = puckProgress * 0.8;
-    reward += progressReward;
-    details['پیشروی توپ'] = progressReward;
+        const puckProgress = (puck.x - left) / width;
+        const progressReward = puckProgress * 0.8;
+        reward += progressReward;
+        details['پیشروی توپ'] = progressReward;
 
-    if (lastTouch === 'A') {
-        const opponentGoal = { x: right, y: (top + bottom) / 2 };
-        const puckSpeedTowardsGoal = (puck.vx * (opponentGoal.x - puck.x));
-        if (puckSpeedTowardsGoal > 0) {
-            const shotReward = (puckSpeedTowardsGoal / (width * puck.maxSpeed)) * 1.5;
-            reward += shotReward;
-            details['شوت موثر'] = shotReward;
+        if (lastTouch === 'A') {
+            const opponentGoal = { x: right, y: (top + bottom) / 2 };
+            const puckSpeedTowardsGoal = (puck.vx * (opponentGoal.x - puck.x));
+            if (puckSpeedTowardsGoal > 0) {
+                const shotReward = (puckSpeedTowardsGoal / (width * puck.maxSpeed)) * 1.5;
+                reward += shotReward;
+                details['شوت موثر'] = shotReward;
+            }
         }
     }
 
     return { total: reward, details };
 }
+
 
 async function loop(now) {
     if (state.paused) {
@@ -199,7 +203,7 @@ async function loop(now) {
 
     const originalScoreA = state.scoreA;
     const originalScoreB = state.scoreB;
-    const penaltyStateBefore = state.penaltyFor; // وضعیت پنالتی قبل از فیزیک
+    const penaltyStateBefore = state.penaltyFor;
 
     if (state.running) {
         handleGamepadInput(dt);
@@ -208,16 +212,13 @@ async function loop(now) {
 
     let scored = state.scoreA > originalScoreA;
     let conceded = state.scoreB > originalScoreB;
-    // تشخیص صحیح وقوع پنالتی توسط هوش مصنوعی
     let causedPenalty = (penaltyStateBefore !== 'A' && state.penaltyFor === 'A');
     let episodeDone = scored || conceded || (state.timeLeft <= 0 && !state.goldenGoal);
 
     if (state.running && (state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') && lastState) {
         trainingStepCount++;
-        // ارسال متغیر صحیح 'causedPenalty' به تابع
         const { total: reward, details: rewardDetails } = calculateRewardWithDetails(scored, conceded, causedPenalty);
 
-        // جمع‌آوری جزئیات پاداش در طول اپیزود
         for (const key in rewardDetails) {
             if (episodeRewardDetails[key]) {
                 episodeRewardDetails[key] += rewardDetails[key];
@@ -244,7 +245,7 @@ async function loop(now) {
 
             console.log("%cAggregated Reward Details for the Episode:", "color: lightblue; font-weight: bold;");
             const sortedDetails = Object.entries(episodeRewardDetails)
-                .sort(([, a], [, b]) => a - b) // مرتب‌سازی از کمترین به بیشترین
+                .sort(([, a], [, b]) => a - b)
                 .reduce((r, [k, v]) => ({ ...r, [k]: v.toFixed(2) }), {});
             console.table(sortedDetails);
 
@@ -268,7 +269,7 @@ async function loop(now) {
             console.groupEnd();
 
             totalReward = 0;
-            episodeRewardDetails = {}; // ریست برای اپیزود بعدی
+            episodeRewardDetails = {};
         }
 
         if (trainingStepCount % 4 === 0 && replayBuffer.length >= TRAINING_BATCH_SIZE) {
@@ -303,9 +304,7 @@ async function loop(now) {
     requestAnimationFrame(loop);
 }
 
-// --- Event Listeners and the rest of the file remains the same ---
-// ... (کد بقیه فایل را اینجا قرار دهید)
-
+// --- Event Listeners and the rest of the file...
 window.addEventListener('resize', () => { resize(); resetObjects(); });
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
