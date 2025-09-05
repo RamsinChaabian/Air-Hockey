@@ -135,6 +135,7 @@ function calculateRewardWithDetails(scored, conceded, causedPenalty) {
     const details = {};
     let reward = 0;
 
+    // محاسبات قطعی در ابتدای تابع قرار می‌گیرند
     if (scored) {
         details['گل زده'] = 50;
         return { total: 50, details };
@@ -144,10 +145,11 @@ function calculateRewardWithDetails(scored, conceded, causedPenalty) {
         return { total: -50, details };
     }
     if (causedPenalty) {
-        details['پنالتی'] = -25;
+        details['پنالتی (اوت)'] = -25;
         return { total: -25, details };
     }
 
+    // اگر هیچ اتفاق خاصی نیفتاده باشد، محاسبات عادی فریم انجام می‌شود
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
     const cornerThresholdX = left + width * 0.15;
     const cornerThresholdY = height * 0.2;
@@ -197,6 +199,7 @@ async function loop(now) {
 
     const originalScoreA = state.scoreA;
     const originalScoreB = state.scoreB;
+    const penaltyStateBefore = state.penaltyFor; // وضعیت پنالتی قبل از فیزیک
 
     if (state.running) {
         handleGamepadInput(dt);
@@ -205,11 +208,14 @@ async function loop(now) {
 
     let scored = state.scoreA > originalScoreA;
     let conceded = state.scoreB > originalScoreB;
+    // تشخیص صحیح وقوع پنالتی توسط هوش مصنوعی
+    let causedPenalty = (penaltyStateBefore !== 'A' && state.penaltyFor === 'A');
     let episodeDone = scored || conceded || (state.timeLeft <= 0 && !state.goldenGoal);
 
     if (state.running && (state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') && lastState) {
         trainingStepCount++;
-        const { total: reward, details: rewardDetails } = calculateRewardWithDetails(scored, conceded, lastAction);
+        // ارسال متغیر صحیح 'causedPenalty' به تابع
+        const { total: reward, details: rewardDetails } = calculateRewardWithDetails(scored, conceded, causedPenalty);
 
         // جمع‌آوری جزئیات پاداش در طول اپیزود
         for (const key in rewardDetails) {
@@ -236,10 +242,9 @@ async function loop(now) {
             console.log(`%cReason: ${scored ? 'AI Scored!' : (conceded ? 'Player Scored' : 'Time Up')}`, `color: ${scored ? 'lightgreen' : 'orange'}`);
             console.log(`Total Reward in Episode: ${totalReward.toFixed(2)}`);
 
-            // نمایش مجموع جزئیات پاداش‌ها در کنسول
             console.log("%cAggregated Reward Details for the Episode:", "color: lightblue; font-weight: bold;");
             const sortedDetails = Object.entries(episodeRewardDetails)
-                .sort(([, a], [, b]) => a - b)
+                .sort(([, a], [, b]) => a - b) // مرتب‌سازی از کمترین به بیشترین
                 .reduce((r, [k, v]) => ({ ...r, [k]: v.toFixed(2) }), {});
             console.table(sortedDetails);
 
@@ -263,7 +268,7 @@ async function loop(now) {
             console.groupEnd();
 
             totalReward = 0;
-            episodeRewardDetails = {}; // ریست کردن برای اپیزود بعدی
+            episodeRewardDetails = {}; // ریست برای اپیزود بعدی
         }
 
         if (trainingStepCount % 4 === 0 && replayBuffer.length >= TRAINING_BATCH_SIZE) {
@@ -298,7 +303,9 @@ async function loop(now) {
     requestAnimationFrame(loop);
 }
 
-// --- Event Listeners ---
+// --- Event Listeners and the rest of the file remains the same ---
+// ... (کد بقیه فایل را اینجا قرار دهید)
+
 window.addEventListener('resize', () => { resize(); resetObjects(); });
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
@@ -310,9 +317,6 @@ if (startAiVsAiBtn) {
 pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', () => location.reload());
 
-// ==========================================================
-// == بخش مدیریت پیشرفته بارگذاری هوش مصنوعی (اصلاح شده) ==
-// ==========================================================
 const saveAiBtn = document.getElementById('saveAiBtn');
 const loadAiBtn = document.getElementById('loadAiBtn');
 const loadAiModal = document.getElementById('loadAiModal');
@@ -372,7 +376,6 @@ cancelLoadBtn.addEventListener('click', () => {
     loadAiModal.style.display = 'none';
 });
 
-// --- بقیه رویدادها ---
 window.addEventListener('keydown', e => {
     if (e.key === 'Escape' || e.key.toLowerCase() === 'p') {
         togglePause();
@@ -411,5 +414,4 @@ canvas.addEventListener('touchmove', e => {
 window.addEventListener('orientationchange', () => { resize(); resetObjects(); });
 document.addEventListener('selectstart', e => e.preventDefault());
 
-// --- Initial Calls ---
 initializeApp();
