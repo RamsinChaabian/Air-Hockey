@@ -26,7 +26,7 @@ function attemptShoot(p, opts = {}) {
     if (d > p.r + puck.r + shoot.distance) return;
 
     let dir = opts.targetVec ? normalize(opts.targetVec) : normalize({ x: puck.x - p.x, y: puck.y - p.y });
-    
+
     let power;
     if (who === 'AI') {
         power = shoot.powerAI;
@@ -101,7 +101,7 @@ function handleGamepadInput(dt) {
             const who = (paddle === paddleA) ? 'A' : 'B';
             attemptShoot(paddle, { who: who });
         }
-        
+
         prevPad[gamepad.index] = prevPad[gamepad.index] || { buttons: [] };
         prevPad[gamepad.index].buttons[0] = isPressed;
     };
@@ -123,62 +123,90 @@ function handleGamepadInput(dt) {
 
 let lastAction = 0;
 
+// -- START: PHASE 2 CHANGES --
+/**
+ * دریافت وضعیت کامل بازی برای هوش مصنوعی
+ * شامل اطلاعات بیشتر برای تصمیم‌گیری بهتر
+ */
 function getGameState() {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+    const maxAngVel = 15; // یک مقدار منطقی برای نرمال‌سازی سرعت زاویه‌ای
     return [
+        // موقعیت و سرعت توپ (نرمال‌شده)
         (puck.x - (left + width / 2)) / (width / 2),
         (puck.y - (top + height / 2)) / (height / 2),
         puck.vx / puck.maxSpeed,
         puck.vy / puck.maxSpeed,
+        puck.angularVelocity / maxAngVel, //  <-- متغیر جدید
+
+        // موقعیت و سرعت هوش مصنوعی (نرمال‌شده)
         (paddleA.x - (left + width / 4)) / (width / 4),
         (paddleA.y - (top + height / 2)) / (height / 2),
+        paddleA.vx / paddleA.maxSpeed, //  <-- متغیر جدید
+        paddleA.vy / paddleA.maxSpeed, //  <-- متغیر جدید
+
+        // موقعیت و سرعت حریف (نرمال‌شده)
         (paddleB.x - (right - width / 4)) / (width / 4),
         (paddleB.y - (top + height / 2)) / (height / 2),
+        paddleB.vx / paddleB.maxSpeed, //  <-- متغیر جدید
+        paddleB.vy / paddleB.maxSpeed, //  <-- متغیر جدید
     ];
 }
 
+// -- START: PHASE 3 CHANGES --
 function aiControlRL(dt) {
-    const { left, top, bottom, width } = tableCoords(canvas.width, canvas.height);
+    const { right, top, bottom, height } = tableCoords(canvas.width, canvas.height);
     const moveAmount = paddleA.acceleration * dt;
-
-    // --- منطق فرار از گوشه ---
-    const cornerThreshold = paddleA.r * 1.5;
-    const isTooCloseToTop = paddleA.y < top + cornerThreshold;
-    const isTooCloseToBottom = paddleA.y > bottom - cornerThreshold;
-    const isTooCloseToLeft = paddleA.x < left + cornerThreshold;
-    const isTooCloseToCenterWall = paddleA.x > (left + width / 2) - cornerThreshold;
-
-    if (isTooCloseToTop) {
-        paddleA.vy += moveAmount * 1.5; // به پایین حرکت کن
-        return;
-    }
-    if (isTooCloseToBottom) {
-        paddleA.vy -= moveAmount * 1.5; // به بالا حرکت کن
-        return;
-    }
-    if (isTooCloseToLeft) {
-        paddleA.vx += moveAmount * 1.5; // به راست حرکت کن
-        return;
-    }
-    if (isTooCloseToCenterWall) {
-        paddleA.vx -= moveAmount * 1.5; // به چپ حرکت کن
-        return;
-    }
-    // --- پایان منطق فرار ---
+    const diagonalMoveAmount = moveAmount * (1 / Math.sqrt(2));
 
     const currentState = getGameState();
     const actionIndex = rlAgent.chooseAction(currentState);
     lastAction = actionIndex;
 
+    // ریست کردن توربو در هر فریم
+    paddleA.isTurboActive = false;
+
+    // تعریف اهداف شوت
+    const goalHeight = height * 0.7;
+    const goalTop = top + height * 0.15;
+    const opponentGoal = {
+        center: { x: right, y: (top + bottom) / 2 },
+        left:   { x: right, y: goalTop },
+        right:  { x: right, y: goalTop + goalHeight }
+    };
+
     switch (actionIndex) {
+        // حرکات اصلی
         case 0: paddleA.vy -= moveAmount; break; // بالا
         case 1: paddleA.vy += moveAmount; break; // پایین
         case 2: paddleA.vx -= moveAmount; break; // چپ
         case 3: paddleA.vx += moveAmount; break; // راست
-        case 4: attemptShoot(paddleA, { who: 'AI' }); break; // شوت
-        case 5: /* هیچ کاری نکن */ break;
+        
+        // حرکات مورب
+        case 4: paddleA.vy -= diagonalMoveAmount; paddleA.vx -= diagonalMoveAmount; break; // بالا-چپ
+        case 5: paddleA.vy -= diagonalMoveAmount; paddleA.vx += diagonalMoveAmount; break; // بالا-راست
+        case 6: paddleA.vy += diagonalMoveAmount; paddleA.vx -= diagonalMoveAmount; break; // پایین-چپ
+        case 7: paddleA.vy += diagonalMoveAmount; paddleA.vx += diagonalMoveAmount; break; // پایین-راست
+        
+        // شوت‌های هدفمند
+        case 8: // شوت به مرکز
+            attemptShoot(paddleA, { who: 'AI', targetVec: {x: opponentGoal.center.x - puck.x, y: opponentGoal.center.y - puck.y} });
+            break;
+        case 9: // شوت به چپ
+             attemptShoot(paddleA, { who: 'AI', targetVec: {x: opponentGoal.left.x - puck.x, y: opponentGoal.left.y - puck.y} });
+            break;
+        case 10: // شوت به راست
+            attemptShoot(paddleA, { who: 'AI', targetVec: {x: opponentGoal.right.x - puck.x, y: opponentGoal.right.y - puck.y} });
+            break;
+        
+        // قابلیت‌های جدید
+        case 11: // فعال کردن توربو
+            paddleA.isTurboActive = true;
+            break;
+        case 12: /* هیچ کاری نکن */ break;
     }
 }
+// -- END: PHASE 3 CHANGES --
 
 
 // =========================================================================
@@ -224,7 +252,7 @@ function aiControlHumanLike(dt) {
 
     const DEF_X = right - width * 0.14;
     const maxBotSpeed = p.maxSpeed * 0.9;
-    
+
     shoot.cooldownB = Math.max(0, shoot.cooldownB - dt);
 
     const predictionTime = 0.15;
@@ -257,10 +285,10 @@ function aiControlHumanLike(dt) {
     }
 
     const aimVec = normalize({ x: aimTarget.x - predictedPuck.x, y: aimTarget.y - predictedPuck.y });
-    
+
     const backoff = p.r + puck.r + (isBankShot ? 15 : 24);
     const approach = { x: predictedPuck.x - aimVec.x * backoff, y: predictedPuck.y - aimVec.y * backoff };
-    
+
     moveTowards(p, approach, maxBotSpeed, dt, 1.2);
 
     const toPuck = normalize({ x: puck.x - p.x, y: puck.y - p.y });
@@ -270,7 +298,7 @@ function aiControlHumanLike(dt) {
     if (inRange && align > (isBankShot ? 0.45 : 0.55) && shoot.cooldownB <= 0) {
         attemptShoot(p, { who: 'B', targetVec: aimVec });
     }
-    
+
     clampToBotHalf();
 }
 
@@ -366,24 +394,24 @@ function stepPhysics(dt) {
             }
         }
     };
-    
+
     if (state.gameMode === 'twoPlayer') {
         move(paddleA, 'w', 's', 'a', 'd');
     } else {
         aiControlRL(dt);
     }
-    
+
     if (state.gameMode === 'ai-vs-ai') {
         aiControlHumanLike(dt);
     } else {
         move(paddleB, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
     }
-    
+
     paddleA.x += paddleA.vx * dt;
     paddleA.y += paddleA.vy * dt;
     paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
     paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
-    
+
     paddleB.x += paddleB.vx * dt;
     paddleB.y += paddleB.vy * dt;
     paddleB.x = clamp(paddleB.x, left + width / 2 + paddleB.r, right - paddleB.r);

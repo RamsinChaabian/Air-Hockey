@@ -11,18 +11,22 @@ class RLAgent {
         this.epsilonMin = 0.01;
     }
 
+    // -- START: PHASE 3 CHANGES --
     createModel() {
         const model = tf.sequential();
-        model.add(tf.layers.dense({ inputShape: [8], units: 64, activation: 'relu' }));
+        // ورودی همچنان 13 است
+        model.add(tf.layers.dense({ inputShape: [13], units: 64, activation: 'relu' }));
         model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-        model.add(tf.layers.dense({ units: 6, activation: 'linear' }));
+        // افزایش سایز خروجی به 13 برای پشتیبانی از 3 شوت و توربو
+        model.add(tf.layers.dense({ units: 13, activation: 'linear' }));
         model.compile({ optimizer: tf.train.adam(this.learningRate), loss: 'meanSquaredError' });
         return model;
     }
 
     chooseAction(state) {
         if (Math.random() <= this.epsilon) {
-            return Math.floor(Math.random() * 6);
+            // انتخاب یک حرکت تصادفی از بین 13 حرکت ممکن
+            return Math.floor(Math.random() * 13);
         }
         return tf.tidy(() => {
             const prediction = this.model.predict(tf.tensor2d([state]));
@@ -39,24 +43,25 @@ class RLAgent {
         const nextStates = batch.map(exp => exp.nextState);
         const dones = batch.map(exp => exp.done);
 
-        const statesTensor = tf.tensor2d(states, [batch.length, 8]);
+        const statesTensor = tf.tensor2d(states, [batch.length, 13]);
         const actionsTensor = tf.tensor1d(actions, 'int32');
         const rewardsTensor = tf.tensor1d(rewards, 'float32');
-        const nextStatesTensor = tf.tensor2d(nextStates, [batch.length, 8]);
+        const nextStatesTensor = tf.tensor2d(nextStates, [batch.length, 13]);
         const donesTensor = tf.tensor1d(dones, 'bool');
 
         const nextQValues = targetModel.predict(nextStatesTensor);
         const maxNextQ = nextQValues.max(1);
-        
+
         const terminalStateMask = donesTensor.logicalNot();
         const targetQValues = rewardsTensor.add(
             maxNextQ.mul(this.discountFactor).mul(terminalStateMask)
         );
 
         const currentQValues = this.model.predict(statesTensor);
-        const actionMask = tf.oneHot(actionsTensor, 6);
+        // به‌روزرسانی تعداد حرکات در oneHot
+        const actionMask = tf.oneHot(actionsTensor, 13);
         const invertedActionMask = tf.sub(1, actionMask);
-        
+
         const updatedQValues = currentQValues.mul(invertedActionMask).add(
             actionMask.mul(targetQValues.expandDims(1))
         );
@@ -78,6 +83,7 @@ class RLAgent {
             this.epsilon *= this.epsilonDecay;
         }
     }
+    // -- END: PHASE 3 CHANGES --
 
     updateTargetModel(targetModel) {
         targetModel.setWeights(this.model.getWeights());
@@ -100,25 +106,28 @@ class RLAgent {
         showMessage("فایل‌های هوش مصنوعی آماده دانلود!", "#02ffa0");
     }
 
-    /**
-     * مدل را از فایل‌های انتخاب‌شده توسط کاربر بارگذاری می‌کند. (نسخه نهایی و اصلاح‌شده)
-     */
-     async loadModel(files) {
-        // اکنون تابع به جای لیست فایل، یک آبجکت با فایل‌های مشخص دریافت می‌کند
-        if (!files || !files.jsonFile || !files.weightsFile) {
-            console.error("JSON or BIN file is missing.");
-            showMessage("فایل JSON یا BIN یافت نشد!", "red");
+    async loadModel(files) {
+        if (!files || files.length < 3) {
+            showMessage("لطفاً هر سه فایل مدل را انتخاب کنید!", "red");
+            return false;
+        }
+
+        const jsonFile = files.find(f => f.name.endsWith('.json'));
+        const weightsFile = files.find(f => f.name.endsWith('.bin'));
+        const epsilonFile = files.find(f => f.name.endsWith('.txt'));
+
+        if (!jsonFile || !weightsFile || !epsilonFile) {
+            console.error("One or more required model files are missing from the selection.");
+            showMessage("فایل‌های JSON, BIN, یا TXT در انتخاب شما یافت نشد!", "red");
             return false;
         }
 
         try {
-            this.model = await tf.loadLayersModel(tf.io.browserFiles([files.jsonFile, files.weightsFile]));
+            this.model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
             this.model.compile({ optimizer: tf.train.adam(this.learningRate), loss: 'meanSquaredError' });
             
-            if(files.epsilonFile) {
-                const epsilonValue = await files.epsilonFile.text();
-                this.epsilon = parseFloat(epsilonValue);
-            }
+            const epsilonValue = await epsilonFile.text();
+            this.epsilon = parseFloat(epsilonValue);
 
             console.log("%cAI Model Loaded Successfully from files!", "color: cyan; font-weight: bold;");
             showMessage("هوش مصنوعی بارگذاری شد!", "#56ccf2");

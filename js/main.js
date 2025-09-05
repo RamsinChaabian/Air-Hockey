@@ -14,9 +14,15 @@ rlAgent.updateTargetModel(targetAgent.model);
 let replayBuffer = [];
 const REPLAY_BUFFER_SIZE = 10000;
 const TRAINING_BATCH_SIZE = 64;
+
+// -- START: PHASE 1 CHANGES --
+let trainingStepCount = 0; // شمارنده قدم‌ها برای آموزش و به‌روزرسانی
+const TARGET_UPDATE_FREQUENCY_STEPS = 1000; // به‌روزرسانی شبکه هدف هر 1000 قدم
+// -- END: PHASE 1 CHANGES --
+
 let trainingEpisodeCount = 0;
 let totalReward = 0;
-const TARGET_UPDATE_FREQUENCY = 10;
+
 // ===========================================
 
 // تابع اصلی که در ابتدای بارگذاری صفحه اجرا می‌شود
@@ -127,35 +133,71 @@ function togglePause() {
     }
 }
 
+
+
+/**
+ * تابع پاداش نهایی با جریمه هوشمند برای گیر کردن
+ * @param {boolean} scored - آیا هوش مصنوعی گل زده است؟
+ * @param {boolean} conceded - آیا هوش مصنوعی گل خورده است؟
+ * @returns {number} - مقدار پاداش
+ */
 function calculateReward(scored, conceded) {
-    // پاداش و جریمه‌های اصلی
-    if (scored) return 100;    // پاداش بزرگ برای گل زدن
-    if (conceded) return -100; // جریمه بزرگ برای گل خوردن
+    if (scored) return 50;
+    if (conceded) return -50;
 
     let reward = 0;
-    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
-
-    // پاداش برای نزدیک شدن به توپ (برای تشویق به حمله)
-    const distToPuck = distance(paddleA, puck);
-    reward += (1 - (distToPuck / width)) * 0.5; // پاداش کوچک بر اساس نزدیکی به توپ
-
-    // جریمه برای فاصله گرفتن از دروازه خودی (برای تشویق به دفاع)
+    const { left, right, top, bottom, width } = tableCoords(canvas.width, canvas.height);
     const goalCenter = { x: left, y: (top + bottom) / 2 };
-    const distToGoal = distance(paddleA, goalCenter);
-    reward -= (distToGoal / (width / 2)) * 0.2; // جریمه کوچک برای دور شدن از دروازه
 
-    // پاداش برای ضربه زدن به توپ
-    if (lastTouch === 'A') {
-        reward += 1; // پاداش برای آخرین لمس‌کننده بودن
+    // 1. پاداش اصلی: نزدیک شدن و کنترل توپ
+    const distToPuck = distance(paddleA, puck);
+    reward += (1 - (distToPuck / width)) * 0.8;
+
+    // 2. پاداش برای دور نگه داشتن توپ از دروازه
+    const distPuckFromGoal = distance(puck, goalCenter);
+    reward += (distPuckFromGoal / width) * 0.4;
+
+    // -- START: FINAL CORNER FIX --
+
+    // 3. جریمه هوشمند برای "گیر کردن" در گوشه
+    const wallThreshold = paddleA.r * 1.5; // فاصله از دیواره
+    const isNearWall = (
+        paddleA.y < top + wallThreshold ||
+        paddleA.y > bottom + wallThreshold ||
+        paddleA.x < left + wallThreshold
+    );
+    const isStuck = Math.hypot(paddleA.vx, paddleA.vy) < 50; // سرعت بسیار پایین
+
+    // اگر هم به دیواره نزدیک باشد و هم سرعتش کم باشد، جریمه می‌شود
+    if (isNearWall && isStuck) {
+        reward -= 0.5; // این جریمه سنگین، او را مجبور به حرکت می‌کند
+    }
+    // -- END: FINAL CORNER FIX --
+
+    // 4. پاداش برای موقعیت‌گیری دفاعی
+    if (puck.x < left + width / 2) {
+        const vecToGoal = { x: goalCenter.x - puck.x, y: goalCenter.y - puck.y };
+        const distVec = Math.hypot(vecToGoal.x, vecToGoal.y) || 1;
+        const optimalDefensivePos = {
+            x: puck.x + (vecToGoal.x / distVec) * (paddleA.r * 2),
+            y: puck.y + (vecToGoal.y / distVec) * (paddleA.r * 2)
+        };
+        const distFromOptimal = distance(paddleA, optimalDefensivePos);
+        reward += (1 - (distFromOptimal / width)) * 0.3; // کاهش وزن برای تعادل
     }
 
-    // پاداش اضافی اگر توپ در نیمه حریف باشد
-    if (puck.x > left + width / 2) {
-        reward += 0.3;
+    // 5. پاداش برای شوت‌های موثر
+    if (lastTouch === 'A') {
+        const opponentGoal = { x: right, y: (top + bottom) / 2 };
+        const puckSpeedTowardsGoal = (puck.vx * (opponentGoal.x - puck.x));
+        if (puckSpeedTowardsGoal > 0) {
+            reward += (puckSpeedTowardsGoal / (width * puck.maxSpeed)) * 1.5;
+        }
     }
 
     return reward;
 }
+
 
 async function loop(now) {
     if (state.paused) {
@@ -179,7 +221,11 @@ async function loop(now) {
     let episodeDone = scored || conceded || (state.timeLeft <= 0 && !state.goldenGoal);
 
     if (state.running && (state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') && lastState) {
-        const reward = calculateReward(scored, conceded);
+        // -- START: PHASE 1 CHANGES --
+        trainingStepCount++; // افزایش شمارنده قدم‌ها در هر فریم
+        const reward = calculateReward(scored, conceded, lastAction); // ارسال حرکت انتخاب شده به تابع پاداش
+        // -- END: PHASE 1 CHANGES --
+
         totalReward += reward;
         const newState = getGameState();
 
@@ -196,29 +242,38 @@ async function loop(now) {
             console.log(`%cReason: ${scored ? 'AI Scored!' : (conceded ? 'Player Scored' : 'Time Up')}`, `color: ${scored ? 'lightgreen' : 'orange'}`);
             console.log(`Total Reward in Episode: ${totalReward.toFixed(2)}`);
 
-            if (replayBuffer.length >= TRAINING_BATCH_SIZE) {
-                const batch = [];
-                for (let i = 0; i < TRAINING_BATCH_SIZE; i++) {
-                    const randomIndex = Math.floor(Math.random() * replayBuffer.length);
-                    batch.push(replayBuffer[randomIndex]);
-                }
-                console.log("Training the brain with a batch of " + TRAINING_BATCH_SIZE + " experiences...");
-                await rlAgent.train(batch, targetAgent.model);
-            } else {
-                console.log(`Collecting experiences... ${replayBuffer.length}/${TRAINING_BATCH_SIZE}`);
+            // -- START: PHASE 1 CHANGES (منطق آموزش از اینجا حذف و به بیرون منتقل شد) --
+            if (replayBuffer.length < TRAINING_BATCH_SIZE) {
+                 console.log(`Collecting experiences... ${replayBuffer.length}/${TRAINING_BATCH_SIZE}`);
             }
-
-            if (trainingEpisodeCount % TARGET_UPDATE_FREQUENCY === 0) {
-                rlAgent.updateTargetModel(targetAgent.model);
-                console.log(`%c🎯 Target Model Updated!`, "color: cyan; font-weight: bold;");
-            }
+            // -- END: PHASE 1 CHANGES --
 
             console.log(`🧠 AI Status: Exploration (Epsilon) = ${rlAgent.epsilon.toFixed(4)}`);
             console.groupEnd();
 
             totalReward = 0;
         }
+
+        // -- START: PHASE 1 CHANGES --
+        // آموزش مداوم در هر 4 قدم (به جای فقط در انتهای اپیزود)
+        if (trainingStepCount % 4 === 0 && replayBuffer.length >= TRAINING_BATCH_SIZE) {
+            const batch = [];
+            for (let i = 0; i < TRAINING_BATCH_SIZE; i++) {
+                const randomIndex = Math.floor(Math.random() * replayBuffer.length);
+                batch.push(replayBuffer[randomIndex]);
+            }
+            // آموزش شبکه اصلی با یک دسته از تجربیات
+             rlAgent.train(batch, targetAgent.model);
+        }
+
+        // به‌روزرسانی شبکه هدف بر اساس تعداد قدم‌ها
+        if (trainingStepCount % TARGET_UPDATE_FREQUENCY_STEPS === 0 && trainingStepCount > 0) {
+            rlAgent.updateTargetModel(targetAgent.model);
+            console.log(`%c🎯 Target Model Updated after ${trainingStepCount} steps!`, "color: cyan; font-weight: bold;");
+        }
+        // -- END: PHASE 1 CHANGES --
     }
+
 
     let offsetX = 0, offsetY = 0;
     if (shakeTimer > 0) {
@@ -249,27 +304,34 @@ if (startAiVsAiBtn) {
 pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', () => location.reload());
 
+// -- START: BUGFIX CHANGES --
+
 // ==========================================================
-// == بخش مدیریت پیشرفته بارگذاری هوش مصنوعی ==
+// == بخش مدیریت پیشرفته بارگذاری هوش مصنوعی (اصلاح شده) ==
 // ==========================================================
 const saveAiBtn = document.getElementById('saveAiBtn');
 const loadAiBtn = document.getElementById('loadAiBtn');
 const loadAiModal = document.getElementById('loadAiModal');
 
-const selectJsonBtn = document.getElementById('selectJsonBtn');
-const selectBinBtn = document.getElementById('selectBinBtn');
-const selectTxtBtn = document.getElementById('selectTxtBtn');
+// المان‌های جدید در فایل index.html (باید جایگزین دکمه‌های قبلی شوند)
+const selectFilesBtn = document.getElementById('selectFilesBtn');
 const confirmLoadBtn = document.getElementById('confirmLoadBtn');
 const cancelLoadBtn = document.getElementById('cancelLoadBtn');
+const modelUploader = document.getElementById('modelUploader'); // <input type="file" id="modelUploader" multiple>
+const fileStatusEl = document.getElementById('fileStatus');
 
-const jsonUploader = document.getElementById('jsonUploader');
-const binUploader = document.getElementById('binUploader');
-const txtUploader = document.getElementById('txtUploader');
-
-let stagedFiles = { jsonFile: null, weightsFile: null, epsilonFile: null };
+let stagedFiles = []; // حالا یک آرایه برای نگهداری فایل‌ها داریم
 
 function checkFilesReady() {
-    const ready = stagedFiles.jsonFile && stagedFiles.weightsFile && stagedFiles.epsilonFile;
+    const hasJson = stagedFiles.some(f => f.name.endsWith('.json'));
+    const hasBin = stagedFiles.some(f => f.name.endsWith('.bin'));
+    const hasTxt = stagedFiles.some(f => f.name.endsWith('.txt'));
+
+    const ready = hasJson && hasBin && hasTxt;
+
+    fileStatusEl.textContent = ready ? `${stagedFiles.length} فایل انتخاب شد ✔️` : "لطفاً ۳ فایل مدل را انتخاب کنید ❌";
+    fileStatusEl.style.color = ready ? '#02ffa0' : '#ff6b6b';
+
     confirmLoadBtn.disabled = !ready;
     confirmLoadBtn.style.opacity = ready ? 1 : 0.5;
 }
@@ -283,47 +345,38 @@ if (saveAiBtn) {
         }
     });
 }
+
 if (loadAiBtn) {
     loadAiBtn.addEventListener('click', () => {
         loadAiModal.style.display = 'flex';
-        stagedFiles = { jsonFile: null, weightsFile: null, epsilonFile: null };
-        document.getElementById('jsonStatus').textContent = '❌';
-        document.getElementById('binStatus').textContent = '❌';
-        document.getElementById('txtStatus').textContent = '❌';
+        stagedFiles = [];
+        modelUploader.value = ""; // ریست کردن ورودی فایل
         checkFilesReady();
     });
 }
 
-selectJsonBtn.addEventListener('click', () => jsonUploader.click());
-selectBinBtn.addEventListener('click', () => binUploader.click());
-selectTxtBtn.addEventListener('click', () => txtUploader.click());
+selectFilesBtn.addEventListener('click', () => modelUploader.click());
 
-jsonUploader.addEventListener('change', e => {
-    stagedFiles.jsonFile = e.target.files[0];
-    document.getElementById('jsonStatus').textContent = '✔️';
+modelUploader.addEventListener('change', e => {
+    stagedFiles = Array.from(e.target.files); // تبدیل FileList به آرایه
     checkFilesReady();
 });
-binUploader.addEventListener('change', e => {
-    stagedFiles.weightsFile = e.target.files[0];
-    document.getElementById('binStatus').textContent = '✔️';
-    checkFilesReady();
-});
-txtUploader.addEventListener('change', e => {
-    stagedFiles.epsilonFile = e.target.files[0];
-    document.getElementById('txtStatus').textContent = '✔️';
-    checkFilesReady();
-});
+
 
 confirmLoadBtn.addEventListener('click', async () => {
+    // ارسال آرایه فایل‌ها به تابع loadModel
     const modelLoaded = await rlAgent.loadModel(stagedFiles);
     if (modelLoaded) {
         rlAgent.updateTargetModel(targetAgent.model);
         loadAiModal.style.display = 'none';
     }
 });
+
 cancelLoadBtn.addEventListener('click', () => {
     loadAiModal.style.display = 'none';
 });
+// -- END: BUGFIX CHANGES --
+
 
 // --- بقیه رویدادها ---
 window.addEventListener('keydown', e => {

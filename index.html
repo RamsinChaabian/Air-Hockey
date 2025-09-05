@@ -116,34 +116,26 @@
         </div>
     </div>
 
-    <div id="loadAiModal" class="modal" style="display: none;">
-        <div class="panel">
-            <h2>بارگذاری هوش مصنوعی</h2>
-            <p style="text-align: center; color: #cfe8ff; font-size: 14px; margin-bottom: 20px;">
-                لطفاً سه فایل ذخیره‌شده هوش مصنوعی را انتخاب کنید.
+   <div id="loadAiModal" class="modal" style="display: none;">
+    <div class="panel">
+        <h2>بارگذاری هوش مصنوعی</h2>
+        <p style="text-align: center; color: #cfe8ff; font-size: 14px; margin-bottom: 20px;">
+            لطفاً سه فایل ذخیره‌شده هوش مصنوعی (.json, .bin, .txt) را به صورت همزمان انتخاب کنید.
+        </p>
+        <div class="file-upload-area" style="text-align:center;">
+            <button id="selectFilesBtn" class="btn ghost">انتخاب فایل‌ها</button>
+            <p id="fileStatus" class="file-status" style="margin-top: 12px; color: #ff6b6b;">
+                لطفاً ۳ فایل مدل را انتخاب کنید ❌
             </p>
-            <div class="file-upload-area">
-                <button id="selectJsonBtn" class="btn ghost">انتخاب فایل JSON</button>
-                <span id="jsonStatus" class="file-status">❌</span>
-            </div>
-            <div class="file-upload-area">
-                <button id="selectBinBtn" class="btn ghost">انتخاب فایل BIN</button>
-                <span id="binStatus" class="file-status">❌</span>
-            </div>
-            <div class="file-upload-area">
-                <button id="selectTxtBtn" class="btn ghost">انتخاب فایل TXT</button>
-                <span id="txtStatus" class="file-status">❌</span>
-            </div>
-            <div style="text-align:center; margin-top: 25px;">
-                <button id="confirmLoadBtn" class="btn" disabled>بارگذاری نهایی</button>
-                <button id="cancelLoadBtn" class="btn">انصراف</button>
-            </div>
+        </div>
+        <div style="text-align:center; margin-top: 25px;">
+            <button id="confirmLoadBtn" class="btn" disabled>بارگذاری نهایی</button>
+            <button id="cancelLoadBtn" class="btn">انصراف</button>
         </div>
     </div>
+</div>
 
-    <input type="file" id="jsonUploader" accept=".json" style="display:none">
-    <input type="file" id="binUploader" accept=".bin" style="display:none">
-    <input type="file" id="txtUploader" accept=".txt" style="display:none">
+<input type="file" id="modelUploader" multiple accept=".json,.bin,.txt" style="display:none">
 
     <script src="js/rl_agent.js"></script>
     <script src="js/config.js"></script>
