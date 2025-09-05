@@ -22,7 +22,12 @@ const TARGET_UPDATE_FREQUENCY_STEPS = 1000; // به‌روزرسانی شبکه 
 
 let trainingEpisodeCount = 0;
 let totalReward = 0;
-
+// -- START: FINAL SOLUTION --
+// متغیرهای جدید برای مدیریت هوشمند اکتشاف
+let performanceTracker = [];
+const CONSECUTIVE_EPISODES_FOR_RESET = 25; // تعداد اپیزودهای متوالی با عملکرد ضعیف برای ریست
+const REWARD_THRESHOLD = -10; // آستانه پاداش برای تشخیص عملکرد ضعیف
+// -- END: FINAL SOLUTION --
 // ===========================================
 
 // تابع اصلی که در ابتدای بارگذاری صفحه اجرا می‌شود
@@ -136,7 +141,7 @@ function togglePause() {
 
 
 /**
- * تابع پاداش نهایی با جریمه هوشمند برای گیر کردن
+ * تابع پاداش نهایی، ضد-اکسپلویت و متعادل‌شده
  * @param {boolean} scored - آیا هوش مصنوعی گل زده است؟
  * @param {boolean} conceded - آیا هوش مصنوعی گل خورده است؟
  * @returns {number} - مقدار پاداش
@@ -149,32 +154,35 @@ function calculateReward(scored, conceded) {
     const { left, right, top, bottom, width } = tableCoords(canvas.width, canvas.height);
     const goalCenter = { x: left, y: (top + bottom) / 2 };
 
-    // 1. پاداش اصلی: نزدیک شدن و کنترل توپ
+    // --- منطق پاداش و جریمه نهایی ---
+
+    // 1. پاداش اصلی: نزدیک شدن به توپ
+    // این پاداش هوش مصنوعی را تشویق می‌کند که همیشه در بازی فعال باشد.
     const distToPuck = distance(paddleA, puck);
-    reward += (1 - (distToPuck / width)) * 0.8;
+    reward += (1 - (distToPuck / width)) * 0.5;
 
-    // 2. پاداش برای دور نگه داشتن توپ از دروازه
-    const distPuckFromGoal = distance(puck, goalCenter);
-    reward += (distPuckFromGoal / width) * 0.4;
+    // -- START: ANTI-EXPLOIT FIX --
 
-    // -- START: FINAL CORNER FIX --
+    // 2. پاداش جدید: پیشروی توپ در زمین (به جای فاصله از مرکز دروازه)
+    // این پاداش به صورت خطی با جلو رفتن توپ در محور X افزایش می‌یابد.
+    const puckProgress = (puck.x - left) / width; // مقداری بین 0 (دروازه خودی) و 1 (دروازه حریف)
+    reward += puckProgress * 0.5; // پاداش مستقیم برای کنترل توپ در زمین حریف
 
-    // 3. جریمه هوشمند برای "گیر کردن" در گوشه
-    const wallThreshold = paddleA.r * 1.5; // فاصله از دیواره
+    // -- END: ANTI-EXPLOIT FIX --
+
+    // 3. جریمه هوشمند برای "گیر کردن" در گوشه (بدون تغییر)
+    const wallThreshold = paddleA.r * 1.5;
     const isNearWall = (
         paddleA.y < top + wallThreshold ||
         paddleA.y > bottom + wallThreshold ||
         paddleA.x < left + wallThreshold
     );
-    const isStuck = Math.hypot(paddleA.vx, paddleA.vy) < 50; // سرعت بسیار پایین
-
-    // اگر هم به دیواره نزدیک باشد و هم سرعتش کم باشد، جریمه می‌شود
+    const isStuck = Math.hypot(paddleA.vx, paddleA.vy) < 50;
     if (isNearWall && isStuck) {
-        reward -= 0.5; // این جریمه سنگین، او را مجبور به حرکت می‌کند
+        reward -= 0.5;
     }
-    // -- END: FINAL CORNER FIX --
 
-    // 4. پاداش برای موقعیت‌گیری دفاعی
+    // 4. پاداش برای موقعیت‌گیری دفاعی (بدون تغییر)
     if (puck.x < left + width / 2) {
         const vecToGoal = { x: goalCenter.x - puck.x, y: goalCenter.y - puck.y };
         const distVec = Math.hypot(vecToGoal.x, vecToGoal.y) || 1;
@@ -183,10 +191,10 @@ function calculateReward(scored, conceded) {
             y: puck.y + (vecToGoal.y / distVec) * (paddleA.r * 2)
         };
         const distFromOptimal = distance(paddleA, optimalDefensivePos);
-        reward += (1 - (distFromOptimal / width)) * 0.3; // کاهش وزن برای تعادل
+        reward += (1 - (distFromOptimal / width)) * 0.3;
     }
 
-    // 5. پاداش برای شوت‌های موثر
+    // 5. پاداش برای شوت‌های موثر (بدون تغییر)
     if (lastTouch === 'A') {
         const opponentGoal = { x: right, y: (top + bottom) / 2 };
         const puckSpeedTowardsGoal = (puck.vx * (opponentGoal.x - puck.x));
@@ -197,6 +205,7 @@ function calculateReward(scored, conceded) {
 
     return reward;
 }
+
 
 
 async function loop(now) {
@@ -242,6 +251,21 @@ async function loop(now) {
             console.log(`%cReason: ${scored ? 'AI Scored!' : (conceded ? 'Player Scored' : 'Time Up')}`, `color: ${scored ? 'lightgreen' : 'orange'}`);
             console.log(`Total Reward in Episode: ${totalReward.toFixed(2)}`);
 
+                        // -- START: FINAL SOLUTION --
+            // منطق بررسی عملکرد و ریست اپسیلون
+            if (totalReward < REWARD_THRESHOLD) {
+                performanceTracker.push(true); // ثبت یک عملکرد ضعیف
+            } else {
+                performanceTracker = []; // در صورت یک عملکرد خوب، شمارنده ریست می‌شود
+            }
+
+            if (performanceTracker.length >= CONSECUTIVE_EPISODES_FOR_RESET) {
+                rlAgent.epsilon = Math.max(rlAgent.epsilon, 0.4); // ریست اپسیلون به 0.4
+                console.log('%c🧠 AI stuck in local minimum! Resetting epsilon to force exploration.', 'color: orange; font-weight: bold;');
+                performanceTracker = []; // ریست کردن شمارنده
+            }
+            // -- END: FINAL SOLUTION --
+            
             // -- START: PHASE 1 CHANGES (منطق آموزش از اینجا حذف و به بیرون منتقل شد) --
             if (replayBuffer.length < TRAINING_BATCH_SIZE) {
                  console.log(`Collecting experiences... ${replayBuffer.length}/${TRAINING_BATCH_SIZE}`);

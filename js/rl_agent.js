@@ -8,7 +8,7 @@ class RLAgent {
         this.discountFactor = 0.95;
         this.epsilon = 1.0;
         this.epsilonDecay = 0.995;
-        this.epsilonMin = 0.01;
+        this.epsilonMin = 0.05;
     }
 
     // -- START: PHASE 3 CHANGES --
