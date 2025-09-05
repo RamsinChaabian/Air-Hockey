@@ -141,58 +141,39 @@ function togglePause() {
 
 
 /**
- * تابع پاداش نهایی، ضد-اکسپلویت و متعادل‌شده
+ * تابع پاداش بازطراحی‌شده برای تشویق بازی هوشمندانه و جلوگیری از گوشه‌نشینی
  * @param {boolean} scored - آیا هوش مصنوعی گل زده است؟
  * @param {boolean} conceded - آیا هوش مصنوعی گل خورده است؟
+ * @param {boolean} causedPenalty - آیا هوش مصنوعی باعث پنالتی (اوت) شده است؟
  * @returns {number} - مقدار پاداش
  */
-function calculateReward(scored, conceded) {
-    if (scored) return 50;
-    if (conceded) return -50;
+function calculateReward(scored, conceded, causedPenalty) {
+    // 1. پاداش و جریمه‌های قطعی و بزرگ
+    if (scored) return 50;         // پاداش بزرگ برای گل زدن
+    if (conceded) return -50;        // جریمه بزرگ برای گل خوردن
+    if (causedPenalty) return -25; // << جریمه جدید و سنگین برای ایجاد پنالتی
 
     let reward = 0;
-    const { left, right, top, bottom, width } = tableCoords(canvas.width, canvas.height);
-    const goalCenter = { x: left, y: (top + bottom) / 2 };
+    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+    
+    // 2. تشویق به کنترل مرکز زمین و دوری از گوشه‌ها
+    const cornerThresholdX = left + width * 0.15; // 15% از لبه چپ
+    const cornerThresholdY = height * 0.2; // 20% از بالا و پایین
+    if (paddleA.x < cornerThresholdX || paddleA.y < top + cornerThresholdY || paddleA.y > bottom - cornerThresholdY) {
+        reward -= 0.8; // << جریمه مداوم و سنگین برای حضور در مناطق گوشه
+    } else {
+        // پاداش برای ماندن در مرکز نیمه خودی
+        const distFromCenterY = Math.abs(paddleA.y - (top + bottom) / 2);
+        reward += (1 - (distFromCenterY / (height / 2))) * 0.4;
+    }
 
-    // --- منطق پاداش و جریمه نهایی ---
-
-    // 1. پاداش اصلی: نزدیک شدن به توپ
-    // این پاداش هوش مصنوعی را تشویق می‌کند که همیشه در بازی فعال باشد.
+    // 3. پاداش برای نزدیک شدن به توپ (با ضریب کمتر)
     const distToPuck = distance(paddleA, puck);
-    reward += (1 - (distToPuck / width)) * 0.5;
+    reward += (1 - (distToPuck / width)) * 0.2; // ضریب کاهش یافت
 
-    // -- START: ANTI-EXPLOIT FIX --
-
-    // 2. پاداش جدید: پیشروی توپ در زمین (به جای فاصله از مرکز دروازه)
-    // این پاداش به صورت خطی با جلو رفتن توپ در محور X افزایش می‌یابد.
-    const puckProgress = (puck.x - left) / width; // مقداری بین 0 (دروازه خودی) و 1 (دروازه حریف)
-    reward += puckProgress * 0.5; // پاداش مستقیم برای کنترل توپ در زمین حریف
-
-    // -- END: ANTI-EXPLOIT FIX --
-
-    // 3. جریمه هوشمند برای "گیر کردن" در گوشه (بدون تغییر)
-    const wallThreshold = paddleA.r * 1.5;
-    const isNearWall = (
-        paddleA.y < top + wallThreshold ||
-        paddleA.y > bottom + wallThreshold ||
-        paddleA.x < left + wallThreshold
-    );
-    const isStuck = Math.hypot(paddleA.vx, paddleA.vy) < 50;
-    if (isNearWall && isStuck) {
-        reward -= 0.5;
-    }
-
-    // 4. پاداش برای موقعیت‌گیری دفاعی (بدون تغییر)
-    if (puck.x < left + width / 2) {
-        const vecToGoal = { x: goalCenter.x - puck.x, y: goalCenter.y - puck.y };
-        const distVec = Math.hypot(vecToGoal.x, vecToGoal.y) || 1;
-        const optimalDefensivePos = {
-            x: puck.x + (vecToGoal.x / distVec) * (paddleA.r * 2),
-            y: puck.y + (vecToGoal.y / distVec) * (paddleA.r * 2)
-        };
-        const distFromOptimal = distance(paddleA, optimalDefensivePos);
-        reward += (1 - (distFromOptimal / width)) * 0.3;
-    }
+    // 4. پاداش برای پیشروی و بازی تهاجمی (با ضریب بیشتر)
+    const puckProgress = (puck.x - left) / width;
+    reward += puckProgress * 0.8; // ضریب افزایش یافت
 
     // 5. پاداش برای شوت‌های موثر (بدون تغییر)
     if (lastTouch === 'A') {
