@@ -22,7 +22,7 @@ const TARGET_UPDATE_FREQUENCY = 10;
 // تابع اصلی که در ابتدای بارگذاری صفحه اجرا می‌شود
 function initializeApp() {
     console.log("Initializing Air Hockey AI... Start a single player game or load a saved model.");
-    
+
     // راه‌اندازی بقیه قسمت‌های بازی
     resize();
     resetObjects();
@@ -45,7 +45,7 @@ function startMatch(minutes, mode) {
     state.gameMode = mode;
     state.goldenGoal = false;
     timerEl.classList.remove('golden-goal-text');
-    playerALabel.textContent = mode === 'singlePlayer' ? 'هوش مصنوعی' : 'بازیکن ←';
+    playerALabel.textContent = (mode === 'singlePlayer' || mode === 'ai-vs-ai') ? 'هوش مصنوعی' : 'بازیکن ←';
     startCrowd();
     state.matchTime = Math.max(10, Math.floor(minutes * 60));
     state.timeLeft = state.matchTime;
@@ -72,9 +72,9 @@ function startMatch(minutes, mode) {
         } else {
             showMessage('شروع!', '#ffd166');
             playWhistle();
-            state.running = true; 
-            if (state.gameMode === 'singlePlayer') {
-                lastState = getGameState(); 
+            state.running = true;
+            if (state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') {
+                lastState = getGameState();
             }
 
             window.matchInterval = setInterval(() => {
@@ -102,11 +102,11 @@ function handleTimeUp() {
         if (window.matchInterval) clearInterval(window.matchInterval);
         timerEl.textContent = 'گل طلایی';
         timerEl.classList.add('golden-goal-text');
-        
+
         messageOverlay.innerHTML = `<div class="golden-goal-text">گل طلایی</div>`;
         messageOverlay.classList.add('show');
         setTimeout(()=> messageOverlay.classList.remove('show'), 2500);
-        
+
         playWhistle();
     } else {
         endMatch();
@@ -173,19 +173,19 @@ async function loop(now) {
         handleGamepadInput(dt);
         stepPhysics(dt);
     }
-    
+
     let scored = state.scoreA > originalScoreA;
     let conceded = state.scoreB > originalScoreB;
     let episodeDone = scored || conceded || (state.timeLeft <= 0 && !state.goldenGoal);
 
-    if (state.running && state.gameMode === 'singlePlayer' && lastState) {
+    if (state.running && (state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') && lastState) {
         const reward = calculateReward(scored, conceded);
         totalReward += reward;
         const newState = getGameState();
-        
+
         replayBuffer.push({ state: lastState, action: lastAction, reward, nextState: newState, done: episodeDone });
         if (replayBuffer.length > REPLAY_BUFFER_SIZE) {
-            replayBuffer.shift(); 
+            replayBuffer.shift();
         }
 
         lastState = newState;
@@ -195,7 +195,7 @@ async function loop(now) {
             console.group(`%c--- Episode ${trainingEpisodeCount} Finished ---`, "color: yellow; font-size: 14px;");
             console.log(`%cReason: ${scored ? 'AI Scored!' : (conceded ? 'Player Scored' : 'Time Up')}`, `color: ${scored ? 'lightgreen' : 'orange'}`);
             console.log(`Total Reward in Episode: ${totalReward.toFixed(2)}`);
-            
+
             if (replayBuffer.length >= TRAINING_BATCH_SIZE) {
                 const batch = [];
                 for (let i = 0; i < TRAINING_BATCH_SIZE; i++) {
@@ -207,7 +207,7 @@ async function loop(now) {
             } else {
                 console.log(`Collecting experiences... ${replayBuffer.length}/${TRAINING_BATCH_SIZE}`);
             }
-            
+
             if (trainingEpisodeCount % TARGET_UPDATE_FREQUENCY === 0) {
                 rlAgent.updateTargetModel(targetAgent.model);
                 console.log(`%c🎯 Target Model Updated!`, "color: cyan; font-weight: bold;");
@@ -228,7 +228,7 @@ async function loop(now) {
         shakeTimer -= dt;
         shakeIntensity *= 0.95;
     }
-    
+
     draw(dt);
 
     if (shakeTimer > 0) {
@@ -242,6 +242,10 @@ window.addEventListener('resize', () => { resize(); resetObjects(); });
 fsBtn.addEventListener('click', tryFullscreen);
 startSinglePlayerBtn.addEventListener('click', () => startGame('singlePlayer'));
 startTwoPlayerBtn.addEventListener('click', () => startGame('twoPlayer'));
+const startAiVsAiBtn = document.getElementById('startAiVsAiBtn');
+if (startAiVsAiBtn) {
+    startAiVsAiBtn.addEventListener('click', () => startGame('ai-vs-ai'));
+}
 pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', () => location.reload());
 
@@ -272,10 +276,10 @@ function checkFilesReady() {
 
 if (saveAiBtn) {
     saveAiBtn.addEventListener('click', () => {
-        if(state.gameMode === 'singlePlayer') {
+        if(state.gameMode === 'singlePlayer' || state.gameMode === 'ai-vs-ai') {
             rlAgent.saveModel();
         } else {
-            showMessage("فقط در حالت تک‌نفره!", "orange");
+            showMessage("فقط در حالت تک‌نفره یا هوش مصنوعی در مقابل ربات!", "orange");
         }
     });
 }

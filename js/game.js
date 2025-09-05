@@ -77,6 +77,7 @@ function handleShootKeydown(e) {
  * Handles gamepad input for paddle movement and shooting.
  */
 function handleGamepadInput(dt) {
+    if (state.gameMode === 'ai-vs-ai') return;
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!gamepads.length) return;
 
@@ -117,17 +118,13 @@ function handleGamepadInput(dt) {
 }
 
 // =========================================================================
-// == بخش هوش مصنوعی مبتنی بر یادگیری تقویتی (Reinforcement Learning) ==
+// == هوش مصنوعی اصلی (بازیکن چپ) - بهبود یافته ==
 // =========================================================================
 
-let lastAction = 0; // برای ذخیره آخرین اقدام انجام‌شده
+let lastAction = 0;
 
-/**
- * وضعیت فعلی بازی را به صورت یک آرایه عددی نرمال‌شده برمی‌گرداند.
- */
 function getGameState() {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
-    // نرمال‌سازی مقادیر برای بهبود یادگیری شبکه عصبی
     return [
         (puck.x - (left + width / 2)) / (width / 2),
         (puck.y - (top + height / 2)) / (height / 2),
@@ -140,16 +137,38 @@ function getGameState() {
     ];
 }
 
-/**
- * کنترل هوش مصنوعی با استفاده از عامل RL.
- */
 function aiControlRL(dt) {
+    const { left, top, bottom, width } = tableCoords(canvas.width, canvas.height);
+    const moveAmount = paddleA.acceleration * dt;
+
+    // --- منطق فرار از گوشه ---
+    const cornerThreshold = paddleA.r * 1.5;
+    const isTooCloseToTop = paddleA.y < top + cornerThreshold;
+    const isTooCloseToBottom = paddleA.y > bottom - cornerThreshold;
+    const isTooCloseToLeft = paddleA.x < left + cornerThreshold;
+    const isTooCloseToCenterWall = paddleA.x > (left + width / 2) - cornerThreshold;
+
+    if (isTooCloseToTop) {
+        paddleA.vy += moveAmount * 1.5; // به پایین حرکت کن
+        return;
+    }
+    if (isTooCloseToBottom) {
+        paddleA.vy -= moveAmount * 1.5; // به بالا حرکت کن
+        return;
+    }
+    if (isTooCloseToLeft) {
+        paddleA.vx += moveAmount * 1.5; // به راست حرکت کن
+        return;
+    }
+    if (isTooCloseToCenterWall) {
+        paddleA.vx -= moveAmount * 1.5; // به چپ حرکت کن
+        return;
+    }
+    // --- پایان منطق فرار ---
+
     const currentState = getGameState();
-    // rlAgent در فایل main.js تعریف شده است و در اینجا از آن استفاده می‌کنیم
     const actionIndex = rlAgent.chooseAction(currentState);
     lastAction = actionIndex;
-
-    const moveAmount = paddleA.acceleration * dt;
 
     switch (actionIndex) {
         case 0: paddleA.vy -= moveAmount; break; // بالا
@@ -161,26 +180,129 @@ function aiControlRL(dt) {
     }
 }
 
-/**
- * Triggers a penalty, resetting puck and paddles.
- */
+
+// =========================================================================
+// == ربات انسان‌نما (بازیکن راست) ==
+// =========================================================================
+
+function calculateBankShotTargetForBot() {
+    const { left, right, top, bottom } = tableCoords(canvas.width, canvas.height);
+    const enemyGoal = { x: left + 10, y: (top + bottom) / 2 };
+
+    const directPathBlocked = Math.abs(puck.y - paddleA.y) < paddleA.r && puck.x > paddleA.x;
+    if (!directPathBlocked) return null;
+
+    const walls = [{ y: top }, { y: bottom }];
+    for (const wall of walls) {
+        const reflectedGoalY = wall.y + (wall.y - enemyGoal.y);
+        const reflectedGoal = { x: enemyGoal.x, y: reflectedGoalY };
+        const dirToReflectedGoal = normalize({ x: reflectedGoal.x - puck.x, y: reflectedGoal.y - puck.y });
+        const t = (wall.y - puck.y) / dirToReflectedGoal.y;
+        if (t > 0) {
+            const collisionPoint = { x: puck.x + dirToReflectedGoal.x * t, y: wall.y };
+            if (collisionPoint.x > left && collisionPoint.x < right) {
+                return collisionPoint;
+            }
+        }
+    }
+    return null;
+}
+
+function aiControlHumanLike(dt) {
+    const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
+    const p = paddleB;
+    const goalHeight = Math.min(160, height * 0.32);
+    const goalTop = (top + bottom) / 2 - goalHeight / 2;
+    const goalBottom = (top + bottom) / 2 + goalHeight / 2;
+    const enemyGoal = { x: left + 10, y: (top + bottom) / 2 };
+    const isPuckInBotHalf = puck.x > right - width * 0.55;
+
+    const clampToBotHalf = () => {
+        p.x = Math.max(right - width / 2 + p.r, Math.min(right - p.r, p.x));
+        p.y = Math.max(top + p.r, Math.min(bottom - p.r, p.y));
+    };
+
+    const DEF_X = right - width * 0.14;
+    const maxBotSpeed = p.maxSpeed * 0.9;
+    
+    shoot.cooldownB = Math.max(0, shoot.cooldownB - dt);
+
+    const predictionTime = 0.15;
+    const predictedPuck = {
+        x: puck.x + puck.vx * predictionTime,
+        y: puck.y + puck.vy * predictionTime
+    };
+
+    if (!isPuckInBotHalf && state.penaltyFor !== 'A') {
+        const target = { x: DEF_X, y: clamp(predictedPuck.y, top + p.r, bottom - p.r) };
+        moveTowards(p, target, maxBotSpeed, dt);
+        clampToBotHalf();
+        return;
+    }
+
+    let aimTarget = null;
+    let isBankShot = false;
+
+    const bankShotTarget = calculateBankShotTargetForBot();
+    if (bankShotTarget && state.penaltyFor !== 'A' && Math.random() < 0.4) {
+        aimTarget = bankShotTarget;
+        isBankShot = true;
+    } else {
+        const paddleA_Y_Ratio = (paddleA.y - goalTop) / goalHeight;
+        let targetY = (paddleA_Y_Ratio < 0.5)
+            ? enemyGoal.y + (goalHeight / 4) + (Math.random() * (goalHeight / 4))
+            : enemyGoal.y - (goalHeight / 4) - (Math.random() * (goalHeight / 4));
+        const finalAimY = clamp(targetY, goalTop + 12, goalBottom - 12);
+        aimTarget = { x: enemyGoal.x, y: finalAimY };
+    }
+
+    const aimVec = normalize({ x: aimTarget.x - predictedPuck.x, y: aimTarget.y - predictedPuck.y });
+    
+    const backoff = p.r + puck.r + (isBankShot ? 15 : 24);
+    const approach = { x: predictedPuck.x - aimVec.x * backoff, y: predictedPuck.y - aimVec.y * backoff };
+    
+    moveTowards(p, approach, maxBotSpeed, dt, 1.2);
+
+    const toPuck = normalize({ x: puck.x - p.x, y: puck.y - p.y });
+    const align = dot(toPuck, aimVec);
+    const inRange = distance(p, puck) <= p.r + puck.r + shoot.distance + 6;
+
+    if (inRange && align > (isBankShot ? 0.45 : 0.55) && shoot.cooldownB <= 0) {
+        attemptShoot(p, { who: 'B', targetVec: aimVec });
+    }
+    
+    clampToBotHalf();
+}
+
+function moveTowards(p, target, maxSpeed, dt, accelFactor = 1) {
+    const dx = target.x - p.x;
+    const dy = target.y - p.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 1) {
+        p.vx += (dx / dist) * maxSpeed * dt * 8 * (accelFactor || 1);
+        p.vy += (dy / dist) * maxSpeed * dt * 8 * (accelFactor || 1);
+    }
+    p.vx *= 0.9; p.vy *= 0.9;
+    const sp = Math.hypot(p.vx, p.vy);
+    if (sp > maxSpeed) { const k = maxSpeed / sp; p.vx *= k; p.vy *= k; }
+}
+
+// =========================================================================
+// == فیزیک و منطق اصلی بازی ==
+// =========================================================================
+
 function triggerPenalty(player) {
     if (!state.running) return;
-
     const { left, right } = tableCoords(canvas.width, canvas.height);
     let offender = player || (puck.x > (left + right) / 2 ? 'B' : 'A');
-
     if (!state.penaltyFor) {
         showMessage("اوت", "white");
         playWhistle();
     }
-
     state.penaltyFor = offender;
     puck.vx = puck.vy = puck.angularVelocity = 0;
-
     const { top, bottom, width } = tableCoords(canvas.width, canvas.height);
     const penaltySpotY = (top + bottom) / 2;
-
     if (offender === 'A') {
         puck.x = right - width * 0.25;
         paddleB.x = right - width * 0.15;
@@ -192,17 +314,13 @@ function triggerPenalty(player) {
     paddleA.vx = paddleA.vy = paddleB.vx = paddleB.vy = 0;
 }
 
-/**
- * Main physics simulation step.
- */
 function stepPhysics(dt) {
     const { left, right, top, bottom, width, height } = tableCoords(canvas.width, canvas.height);
-
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gpB = gamepads[1] || gamepads[0];
     const gpA = state.gameMode === 'twoPlayer' && gamepads[0] ? gamepads[0] : null;
 
-    if (paddleB) {
+    if (paddleB && state.gameMode !== 'ai-vs-ai') {
         const isGamepadTurbo = gpB ? !!gpB.buttons?.[5]?.pressed : false;
         const isKeyboardTurbo = !!keys['ShiftRight'];
         paddleB.isTurboActive = isGamepadTurbo || isKeyboardTurbo;
@@ -222,24 +340,18 @@ function stepPhysics(dt) {
     }
 
     const move = (p, upKey, downKey, leftKey, rightKey) => {
-        const minX = p === paddleA ? left + 8 : left + width / 2 + 8;
-        const maxX = p === paddleA ? left + width / 2 - 8 : right - 8;
-
         if ((state.penaltyFor === 'A' && p === paddleA) || (state.penaltyFor === 'B' && p === paddleB)) {
              p.vx *= 0.9; p.vy *= 0.9;
         } else {
             let accel = p.acceleration;
             let maxSp = p.maxSpeed;
-
             if (p.isTurboActive) {
                 accel *= turbo.accelerationMultiplier;
                 maxSp *= turbo.maxSpeedMultiplier;
             }
-
             let inputX = 0, inputY = 0;
             if (keys[upKey]) inputY -= 1; if (keys[downKey]) inputY += 1;
             if (keys[leftKey]) inputX -= 1; if (keys[rightKey]) inputX += 1;
-
             if (inputX !== 0 || inputY !== 0) {
                 const len = Math.hypot(inputX, inputY);
                 p.vx += (inputX / len) * accel * dt;
@@ -247,7 +359,6 @@ function stepPhysics(dt) {
             } else {
                 p.vx *= 0.94; p.vy *= 0.94;
             }
-
             const currentSpeed = Math.hypot(p.vx, p.vy);
             if (currentSpeed > maxSp) {
                 const k = maxSp / currentSpeed;
@@ -256,28 +367,27 @@ function stepPhysics(dt) {
         }
     };
     
-    // اجرای منطق حرکت برای بازیکنان
     if (state.gameMode === 'twoPlayer') {
         move(paddleA, 'w', 's', 'a', 'd');
-        paddleA.x += paddleA.vx * dt;
-        paddleA.y += paddleA.vy * dt;
-        paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
-        paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
     } else {
         aiControlRL(dt);
-        paddleA.x += paddleA.vx * dt;
-        paddleA.y += paddleA.vy * dt;
-        paddleA.vx *= 0.92;
-        paddleA.vy *= 0.92;
-        paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
-        paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
     }
-    move(paddleB, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
+    
+    if (state.gameMode === 'ai-vs-ai') {
+        aiControlHumanLike(dt);
+    } else {
+        move(paddleB, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
+    }
+    
+    paddleA.x += paddleA.vx * dt;
+    paddleA.y += paddleA.vy * dt;
+    paddleA.x = clamp(paddleA.x, left + paddleA.r, left + width / 2 - paddleA.r);
+    paddleA.y = clamp(paddleA.y, top + paddleA.r, bottom - paddleA.r);
+    
     paddleB.x += paddleB.vx * dt;
     paddleB.y += paddleB.vy * dt;
     paddleB.x = clamp(paddleB.x, left + width / 2 + paddleB.r, right - paddleB.r);
     paddleB.y = clamp(paddleB.y, top + paddleB.r, bottom - paddleB.r);
-
 
     puck.x += puck.vx * dt;
     puck.y += puck.vy * dt;
@@ -312,15 +422,12 @@ function stepPhysics(dt) {
             p.hitAnimation = 0.2;
             playClick(1200, 0.05, 0.15);
             lastTouch = (p === paddleA ? 'A' : 'B');
-
             if (state.penaltyFor && ((state.penaltyFor === 'A' && p === paddleB) || (state.penaltyFor === 'B' && p === paddleA))) {
                 state.penaltyFor = null;
             }
-
             const nx = dx / dist, ny = dy / dist;
             puck.x = p.x + nx * minD;
             puck.y = p.y + ny * minD;
-
             const vdx = puck.vx - p.vx, vdy = puck.vy - p.vy;
             const dotN = vdx * nx + vdy * ny;
             if (dotN < 0) {
@@ -329,7 +436,6 @@ function stepPhysics(dt) {
                 puck.vx += impulse * nx / puck.mass;
                 puck.vy += impulse * ny / puck.mass;
                 puck.angularVelocity += (p.vx * ny - p.vy * nx) * 0.002;
-
                 const puckSpeed = Math.hypot(puck.vx, puck.vy);
                 if (puckSpeed > puck.maxSpeed) {
                     const k = puck.maxSpeed / puckSpeed;
@@ -347,28 +453,21 @@ function stepPhysics(dt) {
 }
 
 
-/**
- * Handles scoring a point.
- */
 function scorePoint(player) {
     if (!state.running) return;
-
     if (player === 'A') state.scoreA++; else state.scoreB++;
     scoreAEl.textContent = state.scoreA;
     scoreBEl.textContent = state.scoreB;
-
     if (state.goldenGoal) {
         endMatch();
         return;
     }
-
     flashTimer = 0.5;
     flashSide = player;
     shakeTimer = 0.3;
     shakeIntensity = 5;
     playCheer(0.1);
     playWhistle();
-
     const ownGoal = (lastTouch && lastTouch !== player);
     if (ownGoal) {
         showMessage(
@@ -380,7 +479,6 @@ function scorePoint(player) {
         const color = player === 'A' ? "#ff6b6b" : "#ffd166";
         showMessage(player === 'A' ? String(state.scoreA) : String(state.scoreB), color);
     }
-
     const { left, right, top, bottom } = tableCoords(canvas.width, canvas.height);
     puck.x = (left + right) / 2;
     puck.y = (top + bottom) / 2;
@@ -391,9 +489,6 @@ function scorePoint(player) {
     lastTouch = null;
 }
 
-/**
- * Draws a paddle on the canvas.
- */
 function drawPaddle(p, c, inner, dt) {
     let radius = p.r;
     if (p.hitAnimation > 0) {
@@ -403,7 +498,6 @@ function drawPaddle(p, c, inner, dt) {
     } else {
         p.hitAnimation = 0;
     }
-
     if (p.isTurboActive) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius * 1.5, 0, Math.PI * 2);
@@ -413,14 +507,12 @@ function drawPaddle(p, c, inner, dt) {
         ctx.fillStyle = turboGlow;
         ctx.fill();
     }
-
     const shadowOffsetX = 6 + (p.vx / p.maxSpeed) * 4;
     const shadowOffsetY = 10 + (p.vy / p.maxSpeed) * 4;
     ctx.beginPath();
     ctx.ellipse(p.x + shadowOffsetX, p.y + shadowOffsetY, radius * 1.1, radius * 0.5, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fill();
-
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     const g = ctx.createRadialGradient(p.x - radius * 0.4, p.y - radius * 0.4, radius * 0.1, p.x, p.y, radius);
@@ -429,7 +521,6 @@ function drawPaddle(p, c, inner, dt) {
     g.addColorStop(1, inner);
     ctx.fillStyle = g;
     ctx.fill();
-
     ctx.beginPath();
     ctx.arc(p.x - radius * 0.2, p.y - radius * 0.2, radius * 0.5, 0, Math.PI * 2);
     const highlight = ctx.createRadialGradient(p.x - radius * 0.3, p.y - radius * 0.3, 0, p.x - radius * 0.2, p.y - radius * 0.2, radius * 0.5);
@@ -437,7 +528,6 @@ function drawPaddle(p, c, inner, dt) {
     highlight.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = highlight;
     ctx.fill();
-
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(0,0,0,0.2)';
@@ -445,9 +535,6 @@ function drawPaddle(p, c, inner, dt) {
     ctx.stroke();
 }
 
-/**
- * Draws the puck on the canvas.
- */
 function drawPuck() {
     const shadowOffsetX = 4 + (puck.vx / puck.maxSpeed) * 6;
     const shadowOffsetY = 8 + (puck.vy / puck.maxSpeed) * 6;
@@ -455,7 +542,6 @@ function drawPuck() {
     ctx.ellipse(puck.x + shadowOffsetX, puck.y + shadowOffsetY, puck.r * 1.2, puck.r * 0.5, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.26)';
     ctx.fill();
-
     ctx.save();
     ctx.translate(puck.x, puck.y);
     ctx.rotate(puck.rotation);
@@ -480,10 +566,6 @@ function drawPuck() {
     ctx.restore();
 }
 
-/**
- * Main drawing function for the game.
- * @param {number} dt - Delta time.
- */
 function draw(dt) {
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
@@ -492,9 +574,7 @@ function draw(dt) {
     bgGrad.addColorStop(1, '#032a3b');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
-
     const { left, right, top, bottom, width, height } = tableCoords(w, h);
-
     ctx.save();
     ctx.translate(left + width / 2, (top + bottom) / 2 + height * 0.05);
     const shadowW = width * 1.04, shadowH = height * 1.12;
@@ -506,7 +586,6 @@ function draw(dt) {
     ctx.ellipse(0, 0, shadowW / 2, shadowH / 4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
     const tableGrad = ctx.createLinearGradient(0, top, 0, bottom);
     tableGrad.addColorStop(0, '#56ccf2');
     tableGrad.addColorStop(1, '#0077b6');
@@ -517,14 +596,12 @@ function draw(dt) {
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     roundRect(ctx, left + 3, top + 3, width - 6, height - 6, 22);
     ctx.stroke();
-
     ctx.beginPath();
     ctx.moveTo(left + width / 2, top + 12);
     ctx.lineTo(left + width / 2, bottom - 12);
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
     ctx.lineWidth = 3;
     ctx.stroke();
-
     const penaltyBoxWidth = width * 0.25;
     const penaltyBoxHeight = height * 0.7;
     const penaltyBoxTop = (top + bottom) / 2 - penaltyBoxHeight / 2;
@@ -534,7 +611,6 @@ function draw(dt) {
     ctx.stroke();
     roundRect(ctx, right - penaltyBoxWidth, penaltyBoxTop, penaltyBoxWidth, penaltyBoxHeight, 15);
     ctx.stroke();
-
     const penaltySpotRadius = 30;
     ctx.fillStyle = 'rgba(153,255,153,0.18)';
     ctx.beginPath();
@@ -547,7 +623,6 @@ function draw(dt) {
     ctx.arc((left + right) / 2, (top + bottom) / 2, width * 0.1, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.stroke();
-
     const cornerRadius = (puck?.r || 12) + 20;
     ctx.setLineDash([8, 10]);
     ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
@@ -565,8 +640,6 @@ function draw(dt) {
     ctx.arc(right, bottom, cornerRadius, Math.PI, Math.PI * 1.5);
     ctx.stroke();
     ctx.setLineDash([]);
-
-
     const goalHeight = Math.min(160, height * 0.32);
     const goalTop = (top + bottom) / 2 - goalHeight / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
@@ -578,11 +651,9 @@ function draw(dt) {
     ctx.fillStyle = 'rgba(153,255,153,0.6)';
     roundRect(ctx, right - 6, goalTop, 6, goalHeight, 6);
     ctx.fill();
-
     drawPaddle(paddleA, '#ff6b6b', '#731010', dt);
     drawPaddle(paddleB, '#ffd166', '#6a4f00', dt);
     drawPuck();
-
     if (flashTimer > 0) {
         const opacity = flashTimer / 0.5;
         ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;

@@ -33,7 +33,7 @@
             <button id="pauseBtn" title="توقف بازی" class="btn small-btn">❚❚</button>
             <button id="resetBtn" title="شروع مجدد" class="btn small-btn">↻</button>
             <button id="saveAiBtn" title="ذخیره هوش مصنوعی" class="btn small-btn">💾</button>
-            <button id="loadAiBtn" title="بارگذاری هوش مصنوعی" class="btn small-btn">📂</button> 
+            <button id="loadAiBtn" title="بارگذاری هوش مصنوعی" class="btn small-btn">📂</button>
         </div>
         <input type="file" id="modelUploader" multiple style="display:none" />
 
@@ -61,6 +61,7 @@
                     <div style="margin-top:8px">
                         <button id="startSinglePlayerBtn" class="btn">تک‌نفره</button>
                         <button id="startTwoPlayerBtn" class="btn">دونفره</button>
+                        <button id="startAiVsAiBtn" class="btn">هوش مصنوعی در مقابل ربات</button>
                     </div>
                 </div>
             </div>
@@ -71,7 +72,7 @@
                 <p style="text-align: right; color: #cfe8ff; font-size: 14px; margin-bottom: 15px;">
                     دو حالت بازی: شما می‌توانید به‌صورت تک‌نفره در برابر یک هوش مصنوعی پیشرفته بازی کنید یا یک دوست را در حالت دونفره به چالش بکشید.
                 </p>
-                
+
                 <table class="instructions-table">
                     <thead>
                         <tr>
@@ -108,7 +109,7 @@
 
             </div>
             <br>
-            
+
             <div style="text-align:center; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 13px; color: #cfe8ff; opacity: 0.8;">
                 طراحی و توسعه توسط <a href="https://www.linkedin.com/in/ramsinchaabian/" target="_blank" rel="noopener noreferrer" style="color: #02ffa0; text-decoration: none; font-weight: bold;">رامسین چعبیان</a>
             </div>
@@ -144,7 +145,7 @@
     <input type="file" id="binUploader" accept=".bin" style="display:none">
     <input type="file" id="txtUploader" accept=".txt" style="display:none">
 
-    <script src="js/rl_agent.js"></script> 
+    <script src="js/rl_agent.js"></script>
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/audio.js"></script>
