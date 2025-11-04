@@ -746,10 +746,10 @@ function draw(dt) {
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     roundRect(ctx, left - 6, goalTop, 12, goalHeight, 6);
     ctx.fill();
-    ctx.fillStyle = 'rgba(153,255,153,0.6)';
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
     roundRect(ctx, left, goalTop, 6, goalHeight, 4);
     ctx.fill();
-    ctx.fillStyle = 'rgba(153,255,153,0.6)';
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
     roundRect(ctx, right - 6, goalTop, 6, goalHeight, 6);
     ctx.fill();
 
